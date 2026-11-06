@@ -1,0 +1,8 @@
+version: "3"
+
+tasks:
+  install:
+    desc: Install pinned tools (mise) and sync the app venv (uv)
+    cmds:
+      - mise install
+      - uv sync --project app --python "$(mise current python)"

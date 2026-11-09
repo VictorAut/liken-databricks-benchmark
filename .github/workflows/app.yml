@@ -1,0 +1,26 @@
+name: App
+
+# Tests for the app package (placeholders in phase 1; the harness and
+# generator land in WI006). No cloud auth.
+
+on:
+  pull_request:
+    paths: ["app/**", ".github/workflows/app.yml"]
+  push:
+    branches: [main]
+    paths: ["app/**", ".github/workflows/app.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+
+      - name: Sync and test
+        run: |
+          mise exec -- uv sync --project app --python "$(mise current python)"
+          mise exec -- uv run --project app pytest app/tests -v

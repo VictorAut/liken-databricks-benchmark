@@ -1,0 +1,125 @@
+name: Infra
+
+# Deploy path for the Databricks-on-AWS platform (D004): plan on PR,
+# apply on merge to main, and a dispatch for plan/apply/destroy.
+# Destroy is the teardown convention: reverse stack order, with the
+# empty-account checks in the same job so they cannot be skipped.
+
+on:
+  pull_request:
+    paths:
+      - "infra/**"
+      - ".github/workflows/infra.yml"
+      - .github/actions/infra-auth/**
+  push:
+    branches: [main]
+    paths:
+      - "infra/**"
+      - ".github/workflows/infra.yml"
+      - .github/actions/infra-auth/**
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Verb to run on both stacks (plan | apply | destroy)"
+        required: true
+        default: "plan"
+        type: choice
+        options: [plan, apply, destroy]
+
+# The Databricks federation policy (D012) pins the subject to
+# environment:benchmark, so every job that authenticates to Databricks
+# must declare this environment. The environment's required reviewer
+# makes D009's cost confirmation mechanical for apply/destroy. The plan
+# job also stays in the environment: Databricks data sources resolve at
+# plan time, and the federation policy admits only this environment's
+# tokens — moving plan out would 401 the first plan.
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: infra-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: eu-south-2
+
+jobs:
+  plan:
+    if: >-
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'workflow_dispatch' && inputs.action == 'plan')
+    runs-on: ubuntu-latest
+    environment: benchmark
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - uses: ./.github/actions/infra-auth
+
+      - name: Plan foundation stack
+        run: mise exec -- terragrunt stack run plan --all
+        working-directory: infra/stacks/foundation
+
+      - name: Plan benchmark stack
+        run: mise exec -- terragrunt stack run plan --all
+        working-directory: infra/stacks/benchmark
+
+  apply:
+    if: >-
+      github.event_name == 'push' ||
+      (github.event_name == 'workflow_dispatch' && inputs.action == 'apply')
+    runs-on: ubuntu-latest
+    environment: benchmark
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - uses: ./.github/actions/infra-auth
+
+      - name: Apply foundation stack
+        run: mise exec -- terragrunt stack run apply --all
+        working-directory: infra/stacks/foundation
+
+      - name: Apply benchmark stack
+        run: mise exec -- terragrunt stack run apply --all
+        working-directory: infra/stacks/benchmark
+
+  destroy:
+    if: github.event_name == 'workflow_dispatch' && inputs.action == 'destroy'
+    runs-on: ubuntu-latest
+    environment: benchmark
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+      - name: mise tools
+        uses: jdx/mise-action@v2
+      - name: infra auth
+        uses: ./.github/actions/infra-auth
+
+      - name: Destroy benchmark stack (reverse order)
+        run: mise exec -- terragrunt stack run destroy --all
+        working-directory: infra/stacks/benchmark
+
+      - name: Destroy foundation stack
+        run: mise exec -- terragrunt stack run destroy --all
+        working-directory: infra/stacks/foundation
+
+      # Empty-account checks in the same job: teardown cannot be
+      # considered done unless these pass.
+      - name: Verify no NAT gateway remains
+        run: |
+          test "$(mise exec -- aws ec2 describe-nat-gateways --region eu-south-2 \
+            --filters Name=state,Values=available \
+            --query 'length(NatGateways)' --output text)" = "0"
+
+      - name: Verify no benchmark buckets remain
+        run: |
+          if mise exec -- aws s3 ls | grep -q liken-benchmark; then
+            echo "benchmark buckets still exist:" >&2
+            mise exec -- aws s3 ls | grep liken-benchmark >&2
+            exit 1
+          fi
+
+      - name: Verify only the default VPC remains
+        run: |
+          test "$(mise exec -- aws ec2 describe-vpcs --region eu-south-2 \
+            --query 'length(Vpcs[?!(IsDefault == `true`)])' --output text)" = "0"

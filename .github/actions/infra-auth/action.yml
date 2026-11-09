@@ -1,0 +1,27 @@
+name: "Infra auth"
+description: "Assume the bootstrap OIDC role and export Databricks provider env vars"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Preflight (fail fast on missing variables)
+      shell: bash
+      run: |
+        : "${AWS_ROLE_TO_ASSUME:?AWS_ROLE_TO_ASSUME repository variable is not set (WI005 4.3)}"
+        : "${DATABRICKS_ACCOUNT_ID:?DATABRICKS_ACCOUNT_ID repository variable is not set (WI005 3.2)}"
+        : "${DATABRICKS_ACCOUNT_CLIENT_ID:?DATABRICKS_ACCOUNT_CLIENT_ID repository variable is not set (WI005 3.2)}"
+
+    - name: Assume AWS role via GitHub OIDC
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
+        aws-region: eu-south-2
+        role-session-name: gha-benchmark
+
+    - name: Export Databricks provider env vars
+      shell: bash
+      run: |
+        echo "DATABRICKS_HOST=https://accounts.cloud.databricks.com" >> "$GITHUB_ENV"
+        echo "DATABRICKS_ACCOUNT_ID=${{ vars.DATABRICKS_ACCOUNT_ID }}" >> "$GITHUB_ENV"
+        echo "DATABRICKS_CLIENT_ID=${{ vars.DATABRICKS_ACCOUNT_CLIENT_ID }}" >> "$GITHUB_ENV"
+        echo "DATABRICKS_AUTH_TYPE=github-oidc" >> "$GITHUB_ENV"

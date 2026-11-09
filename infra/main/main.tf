@@ -86,16 +86,6 @@ resource "aws_s3_bucket_policy" "root" {
   depends_on = [aws_s3_bucket_public_access_block.root]
 }
 
-output "root_bucket_name" {
-  description = "Name of the DBFS root bucket."
-  value       = aws_s3_bucket.root.bucket
-}
-
-output "root_bucket_id" {
-  description = "Id of the DBFS root bucket."
-  value       = aws_s3_bucket.root.id
-}
-
 resource "aws_s3_bucket" "data" {
   bucket        = "liken-benchmark-data-eu-south-2"
   force_destroy = true
@@ -126,9 +116,4 @@ resource "aws_s3_bucket_public_access_block" "data" {
   block_public_policy     = true
   ignore_public_acls      = true
   restrict_public_buckets = true
-}
-
-output "data_bucket_name" {
-  description = "Name of the benchmark data bucket."
-  value       = aws_s3_bucket.data.bucket
 }

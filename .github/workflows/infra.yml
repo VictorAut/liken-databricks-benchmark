@@ -87,6 +87,11 @@ jobs:
           name: tfplan
           path: infra/main
 
+      # Apply needs provider plugins installed; init is idempotent and
+      # does not touch the downloaded plan.
+      - name: Init
+        run: mise exec -- terraform -chdir=infra/main init -input=false
+
       - name: Apply
         run: mise exec -- terraform -chdir=infra/main apply -input=false -auto-approve tfplan
 

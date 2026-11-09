@@ -16,3 +16,7 @@ coverage.*
 site/
 
 .memsearch
+.terragrunt-cache/
+.terraform/
+*.tfstate
+*.tfstate.*

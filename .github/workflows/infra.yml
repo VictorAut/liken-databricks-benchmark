@@ -1,0 +1,121 @@
+name: Infra
+
+# Deploy path for the Databricks-on-AWS platform (D004): plan on PR as a
+# status check, everything else on dispatch. Merging to main deploys
+# nothing; apply and destroy run only when you dispatch them.
+# Destroy runs Terraform's own reverse-dependency order, with the
+# empty-account checks in the same job so they cannot be skipped.
+
+on:
+  pull_request:
+    paths:
+      - "infra/**"
+      - ".github/workflows/infra.yml"
+      - .github/actions/infra-auth/**
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Action to run on infra/main (plan | apply | destroy)"
+        required: true
+        default: "plan"
+        type: choice
+        options: [plan, apply, destroy]
+
+# The Databricks federation policy (D012) pins the subject to
+# environment:benchmark, so every job that authenticates to Databricks
+# must declare this environment. The environment's required reviewer
+# makes D009's cost confirmation mechanical for apply/destroy. The plan
+# job also stays in the environment: Databricks data sources resolve at
+# plan time, and the federation policy admits only this environment's
+# tokens — moving plan out would 401 the first plan.
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: infra-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: eu-south-2
+
+jobs:
+  plan:
+    if: >-
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'workflow_dispatch' && inputs.action == 'plan')
+    runs-on: ubuntu-latest
+    environment: benchmark
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - uses: ./.github/actions/infra-auth
+        with:
+          aws-role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
+          databricks-account-id: ${{ vars.DATABRICKS_ACCOUNT_ID }}
+          databricks-client-id: ${{ vars.DATABRICKS_ACCOUNT_CLIENT_ID }}
+
+      - name: Plan
+        run: |
+          mise exec -- terraform -chdir=infra/main init -input=false
+          mise exec -- terraform -chdir=infra/main plan -input=false -out=tfplan
+
+  apply:
+    if: github.event_name == 'workflow_dispatch' && inputs.action == 'apply'
+    runs-on: ubuntu-latest
+    environment: benchmark
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - uses: ./.github/actions/infra-auth
+        with:
+          aws-role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
+          databricks-account-id: ${{ vars.DATABRICKS_ACCOUNT_ID }}
+          databricks-client-id: ${{ vars.DATABRICKS_ACCOUNT_CLIENT_ID }}
+
+      - name: Plan
+        run: |
+          mise exec -- terraform -chdir=infra/main init -input=false
+          mise exec -- terraform -chdir=infra/main plan -input=false -out=tfplan
+
+      - name: Apply
+        run: mise exec -- terraform -chdir=infra/main apply -input=false -auto-approve tfplan
+
+  destroy:
+    if: github.event_name == 'workflow_dispatch' && inputs.action == 'destroy'
+    runs-on: ubuntu-latest
+    environment: benchmark
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+      - name: mise tools
+        uses: jdx/mise-action@v2
+      - name: infra auth
+        uses: ./.github/actions/infra-auth
+        with:
+          aws-role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
+          databricks-account-id: ${{ vars.DATABRICKS_ACCOUNT_ID }}
+          databricks-client-id: ${{ vars.DATABRICKS_ACCOUNT_CLIENT_ID }}
+
+      - name: Destroy
+        run: mise exec -- terraform -chdir=infra/main destroy -input=false -auto-approve
+
+      # Empty-account checks in the same job: teardown cannot be
+      # considered done unless these pass.
+      - name: Verify no NAT gateway remains
+        run: |
+          test "$(mise exec -- aws ec2 describe-nat-gateways --region eu-south-2 \
+            --filters Name=state,Values=available \
+            --query 'length(NatGateways)' --output text)" = "0"
+
+      - name: Verify no benchmark buckets remain
+        run: |
+          if mise exec -- aws s3 ls | grep liken-benchmark | grep -v tfstate; then
+            echo "benchmark buckets still exist:" >&2
+            exit 1
+          fi
+
+      - name: Verify only the default VPC remains
+        run: |
+          test "$(mise exec -- aws ec2 describe-vpcs --region eu-south-2 \
+            --query 'length(Vpcs[?!(IsDefault == `true`)])' --output text)" = "0"

@@ -1,0 +1,43 @@
+name: "Infra auth"
+description: "Assume the bootstrap OIDC role and export Databricks provider env vars"
+
+# Composite actions have no `vars` context; callers pass the values in.
+inputs:
+  aws-role-to-assume:
+    description: "Role ARN from the bootstrap OIDC role."
+    required: true
+  databricks-account-id:
+    description: "Databricks account id."
+    required: true
+  databricks-client-id:
+    description: "Client id of the Databricks OIDC-federated service principal."
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Preflight (fail fast on missing variables)
+      shell: bash
+      env:
+        AWS_ROLE_TO_ASSUME: ${{ inputs.aws-role-to-assume }}
+        DATABRICKS_ACCOUNT_ID: ${{ inputs.databricks-account-id }}
+        DATABRICKS_ACCOUNT_CLIENT_ID: ${{ inputs.databricks-client-id }}
+      run: |
+        : "${AWS_ROLE_TO_ASSUME:?AWS_ROLE_TO_ASSUME repository variable is not set (WI005 4.3)}"
+        : "${DATABRICKS_ACCOUNT_ID:?DATABRICKS_ACCOUNT_ID repository variable is not set (WI005 3.2)}"
+        : "${DATABRICKS_ACCOUNT_CLIENT_ID:?DATABRICKS_ACCOUNT_CLIENT_ID repository variable is not set (WI005 3.2)}"
+
+    - name: Assume AWS role via GitHub OIDC
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ inputs.aws-role-to-assume }}
+        aws-region: eu-south-2
+        role-session-name: gha-benchmark
+
+    - name: Export Databricks provider env vars
+      shell: bash
+      run: |
+        echo "DATABRICKS_HOST=https://accounts.cloud.databricks.com" >> "$GITHUB_ENV"
+        echo "TF_VAR_databricks_account_id=${{ inputs.databricks-account-id }}" >> "$GITHUB_ENV"
+        echo "TF_VAR_databricks_client_id=${{ inputs.databricks-client-id }}" >> "$GITHUB_ENV"
+        echo "DATABRICKS_AUTH_TYPE=github-oidc" >> "$GITHUB_ENV"

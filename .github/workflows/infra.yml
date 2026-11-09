@@ -15,7 +15,7 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: "Action to run on infra/main (plan | apply | destroy)"
+        description: "Action"
         required: true
         default: "plan"
         type: choice

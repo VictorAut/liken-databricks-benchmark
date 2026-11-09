@@ -106,6 +106,9 @@ data "aws_iam_policy_document" "gha_permissions" {
       "s3:GetBucketPolicy",
       "s3:PutBucketPolicy",
       "s3:DeleteBucketPolicy",
+      "s3:PutBucketVersioning",
+      "s3:GetBucketOwnershipControls",
+      "s3:PutBucketOwnershipControls",
     ]
     resources = [
       "arn:aws:s3:::liken-benchmark-tfstate-eu-south-2",
@@ -120,7 +123,7 @@ data "aws_iam_policy_document" "gha_permissions" {
   # Read-only S3 for the smoke checks (bucket listing across the account).
   statement {
     sid       = "S3List"
-    actions   = ["s3:ListAllMyBuckets", "s3:GetBucketTagging"]
+    actions   = ["s3:ListAllMyBuckets"]
     resources = ["*"]
   }
 
@@ -189,7 +192,6 @@ data "aws_iam_policy_document" "gha_permissions" {
       "iam:CreateRole",
       "iam:DeleteRole",
       "iam:GetRole",
-      "iam:PassRole",
       "iam:UpdateRole",
       "iam:PutRolePolicy",
       "iam:GetRolePolicy",

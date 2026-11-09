@@ -72,6 +72,11 @@ jobs:
       - uses: jdx/mise-action@v2
       - uses: ./.github/actions/infra-auth
 
+      - name: Plan
+        run: |
+          mise exec -- terraform -chdir=infra/main init -input=false
+          mise exec -- terraform -chdir=infra/main plan -input=false -out=tfplan
+
       - name: Apply
         run: |
           mise exec -- terraform -chdir=infra/main init -input=false

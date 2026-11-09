@@ -112,6 +112,15 @@ data "aws_iam_policy_document" "gha_permissions" {
       "s3:PutBucketTagging",
       "s3:GetBucketOwnershipControls",
       "s3:PutBucketOwnershipControls",
+      # The full refresh read set of aws_s3_bucket.
+      "s3:GetBucketCors",
+      "s3:GetBucketWebsite",
+      "s3:GetAccelerateConfiguration",
+      "s3:GetBucketRequestPayment",
+      "s3:GetBucketLogging",
+      "s3:GetLifecycleConfiguration",
+      "s3:GetReplicationConfiguration",
+      "s3:GetBucketObjectLockConfiguration",
     ]
     resources = [
       "arn:aws:s3:::liken-benchmark-tfstate-eu-south-2",

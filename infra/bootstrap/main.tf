@@ -107,6 +107,8 @@ data "aws_iam_policy_document" "gha_permissions" {
       "s3:PutBucketPolicy",
       "s3:DeleteBucketPolicy",
       "s3:PutBucketVersioning",
+      "s3:GetBucketTagging",
+      "s3:PutBucketTagging",
       "s3:GetBucketOwnershipControls",
       "s3:PutBucketOwnershipControls",
     ]

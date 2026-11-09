@@ -11,5 +11,5 @@ tasks:
     desc: Apply the bootstrap stack (state bucket, GHA OIDC role)
     dir: infra/bootstrap
     cmds:
-      - AWS_REGION=eu-central-1 mise exec -- terraform apply -input=false -auto-approve
+      - mise exec -- terraform apply -input=false -auto-approve
 

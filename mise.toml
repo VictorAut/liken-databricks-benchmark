@@ -6,3 +6,6 @@ awscli = "2.39.4"
 databricks-cli = "1.24.0"
 python = "3.14.10"
 actionlint = "1.7.7"
+
+[env]
+AWS_REGION = "eu-central-1"

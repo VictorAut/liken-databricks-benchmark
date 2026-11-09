@@ -2,7 +2,7 @@ name: Infra
 
 # Deploy path for the Databricks-on-AWS platform (D004): plan on PR,
 # apply on merge to main, and a dispatch for plan/apply/destroy.
-# Destroy is the teardown convention: reverse stack order, with the
+# Destroy runs Terraform's own reverse-dependency order, with the
 # empty-account checks in the same job so they cannot be skipped.
 
 on:
@@ -56,13 +56,10 @@ jobs:
       - uses: jdx/mise-action@v2
       - uses: ./.github/actions/infra-auth
 
-      - name: Plan foundation stack
-        run: mise exec -- terragrunt stack run plan --all
-        working-directory: infra/stacks/foundation
-
-      - name: Plan benchmark stack
-        run: mise exec -- terragrunt stack run plan --all
-        working-directory: infra/stacks/benchmark
+      - name: Plan
+        run: |
+          mise exec -- terraform -chdir=infra/main init -input=false
+          mise exec -- terraform -chdir=infra/main plan -input=false -out=tfplan
 
   apply:
     if: >-
@@ -75,13 +72,10 @@ jobs:
       - uses: jdx/mise-action@v2
       - uses: ./.github/actions/infra-auth
 
-      - name: Apply foundation stack
-        run: mise exec -- terragrunt stack run apply --all
-        working-directory: infra/stacks/foundation
-
-      - name: Apply benchmark stack
-        run: mise exec -- terragrunt stack run apply --all
-        working-directory: infra/stacks/benchmark
+      - name: Apply
+        run: |
+          mise exec -- terraform -chdir=infra/main init -input=false
+          mise exec -- terraform -chdir=infra/main apply -input=false -auto-approve tfplan
 
   destroy:
     if: github.event_name == 'workflow_dispatch' && inputs.action == 'destroy'
@@ -95,13 +89,8 @@ jobs:
       - name: infra auth
         uses: ./.github/actions/infra-auth
 
-      - name: Destroy benchmark stack (reverse order)
-        run: mise exec -- terragrunt stack run destroy --all
-        working-directory: infra/stacks/benchmark
-
-      - name: Destroy foundation stack
-        run: mise exec -- terragrunt stack run destroy --all
-        working-directory: infra/stacks/foundation
+      - name: Destroy
+        run: mise exec -- terraform -chdir=infra/main destroy -input=false
 
       # Empty-account checks in the same job: teardown cannot be
       # considered done unless these pass.
@@ -113,9 +102,8 @@ jobs:
 
       - name: Verify no benchmark buckets remain
         run: |
-          if mise exec -- aws s3 ls | grep -q liken-benchmark; then
+          if mise exec -- aws s3 ls | grep liken-benchmark | grep -v tfstate; then
             echo "benchmark buckets still exist:" >&2
-            mise exec -- aws s3 ls | grep liken-benchmark >&2
             exit 1
           fi
 

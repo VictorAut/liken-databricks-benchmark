@@ -22,6 +22,6 @@ runs:
       shell: bash
       run: |
         echo "DATABRICKS_HOST=https://accounts.cloud.databricks.com" >> "$GITHUB_ENV"
-        echo "DATABRICKS_ACCOUNT_ID=${{ vars.DATABRICKS_ACCOUNT_ID }}" >> "$GITHUB_ENV"
-        echo "DATABRICKS_CLIENT_ID=${{ vars.DATABRICKS_ACCOUNT_CLIENT_ID }}" >> "$GITHUB_ENV"
+        echo "TF_VAR_databricks_account_id=${{ vars.DATABRICKS_ACCOUNT_ID }}" >> "$GITHUB_ENV"
+        echo "TF_VAR_databricks_client_id=${{ vars.DATABRICKS_ACCOUNT_CLIENT_ID }}" >> "$GITHUB_ENV"
         echo "DATABRICKS_AUTH_TYPE=github-oidc" >> "$GITHUB_ENV"

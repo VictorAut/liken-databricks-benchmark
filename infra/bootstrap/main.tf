@@ -1,13 +1,9 @@
-# One-time bootstrap: the Terraform state bucket and the GitHub Actions
-# OIDC deploy role (D013). Applied once from Victor's laptop as root
-# (D011); the key is deleted right after. Local state only: the bucket
-# cannot hold the state of its own creation. This unit is not a member
-# of any Terragrunt stack and is never applied again.
-
-# --- Terraform state bucket (D003: S3 remote state, no DynamoDB) ---
-
 resource "aws_s3_bucket" "tfstate" {
   bucket = "liken-benchmark-tfstate-eu-south-2"
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "aws_s3_bucket_versioning" "tfstate" {
@@ -28,7 +24,6 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "tfstate" {
   }
 }
 
-# D013: all four public-access blocks on, from creation.
 resource "aws_s3_bucket_public_access_block" "tfstate" {
   bucket = aws_s3_bucket.tfstate.id
 
@@ -38,7 +33,13 @@ resource "aws_s3_bucket_public_access_block" "tfstate" {
   restrict_public_buckets = true
 }
 
-# --- GitHub Actions OIDC deploy role (D013) ---
+resource "aws_s3_bucket_ownership_controls" "tfstate" {
+  bucket = aws_s3_bucket.tfstate.id
+
+  rule {
+    object_ownership = "BucketOwnerEnforced"
+  }
+}
 
 resource "aws_iam_openid_connect_provider" "github" {
   url             = "https://token.actions.githubusercontent.com"
@@ -79,12 +80,8 @@ resource "aws_iam_role" "gha" {
   assume_role_policy = data.aws_iam_policy_document.github_trust.json
 }
 
-# The same role runs plan, apply, and destroy from CI, so it carries the
-# full lifecycle of the benchmark stack's resource types. Name-scoped
-# where the service supports it; S3 is scoped to the three buckets the
-# platform owns.
+
 data "aws_iam_policy_document" "gha_permissions" {
-  # S3: state bucket (with lockfiles) and the benchmark buckets.
   statement {
     sid = "S3Lifecycle"
     actions = [
@@ -120,7 +117,6 @@ data "aws_iam_policy_document" "gha_permissions" {
     ]
   }
 
-  # Read-only S3 for the smoke checks (bucket listing across the account).
   statement {
     sid       = "S3List"
     actions   = ["s3:ListAllMyBuckets"]
@@ -133,8 +129,7 @@ data "aws_iam_policy_document" "gha_permissions" {
     resources = ["*"]
   }
 
-  # VPC/EC2: the benchmark VPC, subnets, NAT, endpoints, IGW. The
-  # service does not support resource-level scoping for most of these.
+  # VPC/EC2: the benchmark VPC, subnets, NAT, endpoints, IGW.
   statement {
     sid = "EC2VPC"
     actions = [
@@ -201,7 +196,7 @@ data "aws_iam_policy_document" "gha_permissions" {
       "iam:TagRole",
       "iam:UntagRole",
     ]
-    resources = ["arn:aws:iam::*:role/liken-benchmark-*"]
+    resources = ["arn:aws:iam::355162269108:role/liken-benchmark-*"]
   }
 
   # Databricks workspace creation reads the account id through STS; the
@@ -209,7 +204,7 @@ data "aws_iam_policy_document" "gha_permissions" {
   statement {
     sid       = "ServiceLinkedRole"
     actions   = ["iam:CreateServiceLinkedRole", "iam:GetServiceLinkedRoleDeletionStatus"]
-    resources = ["arn:aws:iam::*:role/aws-service-role/*"]
+    resources = ["arn:aws:iam::355162269108:role/aws-service-role/*"]
   }
 }
 

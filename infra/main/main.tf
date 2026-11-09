@@ -307,3 +307,41 @@ resource "null_resource" "wait_for_workspace" {
     command = "for i in $(seq 1 30); do code=$(curl -s -o /dev/null -w '%%{http_code}' \"https://${databricks_mws_workspaces.this.workspace_url}\") && [ \"$code\" -ge 200 ] && [ \"$code\" -lt 500 ] && exit 0; sleep 10; done; echo workspace URL never became reachable; exit 1"
   }
 }
+
+# Latest LTS runtime carrying Spark 4.0. The depends_on keeps auth lazy:
+# no data source touches the workspace before it exists.
+data "databricks_spark_version" "lts" {
+  provider          = databricks.workspace
+  spark_version     = "4"
+  latest            = true
+  long_term_support = true
+
+  depends_on = [databricks_mws_workspaces.this]
+}
+
+data "databricks_node_type" "smallest" {
+  provider   = databricks.workspace
+  local_disk = true
+
+  depends_on = [databricks_mws_workspaces.this]
+}
+
+resource "databricks_cluster" "benchmark" {
+  provider                = databricks.workspace
+  cluster_name            = local.cluster_name
+  spark_version           = data.databricks_spark_version.lts.id
+  node_type_id            = data.databricks_node_type.smallest.id
+  autotermination_minutes = 30
+  data_security_mode      = "SINGLE_USER"
+
+  autoscale {
+    min_workers = 1
+    max_workers = 2
+  }
+
+  library {
+    pypi {
+      package = "liken==0.16.0"
+    }
+  }
+}

@@ -42,3 +42,10 @@ provider "databricks" {
   client_id  = var.databricks_client_id
   auth_type  = "github-oidc"
 }
+
+provider "databricks" {
+  alias     = "workspace"
+  host      = databricks_mws_workspaces.this.workspace_url
+  client_id = var.databricks_client_id
+  auth_type = "github-oidc"
+}

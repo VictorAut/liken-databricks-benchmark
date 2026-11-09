@@ -48,7 +48,10 @@ resource "aws_iam_openid_connect_provider" "github" {
 }
 
 locals {
-  github_subject = "repo:VictorAut/liken-databricks-benchmark:environment:benchmark"
+  # job_workflow_ref pins the trust to this repo's infra.yml. The
+  # sub/environment subject is not used: GitHub does not emit the
+  # environment segment for all events, so assumes are denied.
+  github_workflow_ref = "VictorAut/liken-databricks-benchmark/.github/workflows/infra.yml@*"
 }
 
 data "aws_iam_policy_document" "github_trust" {
@@ -62,15 +65,15 @@ data "aws_iam_policy_document" "github_trust" {
     }
 
     condition {
-      test     = "StringEquals"
-      variable = "token.actions.githubusercontent.com:aud"
-      values   = ["sts.amazonaws.com"]
+      test     = "StringLike"
+      variable = "token.actions.githubusercontent.com:job_workflow_ref"
+      values   = [local.github_workflow_ref]
     }
 
     condition {
       test     = "StringEquals"
-      variable = "token.actions.githubusercontent.com:sub"
-      values   = [local.github_subject]
+      variable = "token.actions.githubusercontent.com:aud"
+      values   = ["sts.amazonaws.com"]
     }
   }
 }

@@ -334,6 +334,9 @@ resource "databricks_cluster" "benchmark" {
   node_type_id            = data.databricks_node_type.smallest.id
   autotermination_minutes = 30
   data_security_mode      = "SINGLE_USER"
+  # The single user is the person running benchmarks from the UI, not
+  # the deployer service principal (the SP only deploys infra).
+  single_user_name = var.single_user_email
 
   autoscale {
     min_workers = 1

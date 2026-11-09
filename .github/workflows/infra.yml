@@ -46,6 +46,7 @@ jobs:
           aws-role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
           databricks-account-id: ${{ vars.DATABRICKS_ACCOUNT_ID }}
           databricks-client-id: ${{ vars.DATABRICKS_ACCOUNT_CLIENT_ID }}
+          single-user-email: ${{ secrets.SINGLE_USER_EMAIL }}
 
       - name: Plan
         run: |
@@ -76,6 +77,7 @@ jobs:
           aws-role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
           databricks-account-id: ${{ vars.DATABRICKS_ACCOUNT_ID }}
           databricks-client-id: ${{ vars.DATABRICKS_ACCOUNT_CLIENT_ID }}
+          single-user-email: ${{ secrets.SINGLE_USER_EMAIL }}
 
       # Apply consumes the exact plan produced by the plan job.
       - name: Download plan
@@ -107,6 +109,7 @@ jobs:
           aws-role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
           databricks-account-id: ${{ vars.DATABRICKS_ACCOUNT_ID }}
           databricks-client-id: ${{ vars.DATABRICKS_ACCOUNT_CLIENT_ID }}
+          single-user-email: ${{ secrets.SINGLE_USER_EMAIL }}
 
       - name: Destroy
         run: |

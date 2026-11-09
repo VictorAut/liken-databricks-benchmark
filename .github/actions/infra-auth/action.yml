@@ -12,6 +12,9 @@ inputs:
   databricks-client-id:
     description: "Client id of the Databricks OIDC-federated service principal."
     required: true
+  single-user-email:
+    description: "Email of the benchmark cluster's single user."
+    required: true
 
 runs:
   using: "composite"
@@ -22,10 +25,12 @@ runs:
         AWS_ROLE_TO_ASSUME: ${{ inputs.aws-role-to-assume }}
         DATABRICKS_ACCOUNT_ID: ${{ inputs.databricks-account-id }}
         DATABRICKS_ACCOUNT_CLIENT_ID: ${{ inputs.databricks-client-id }}
+        SINGLE_USER_EMAIL: ${{ inputs.single-user-email }}
       run: |
         : "${AWS_ROLE_TO_ASSUME:?AWS_ROLE_TO_ASSUME repository variable is not set (WI005 4.3)}"
         : "${DATABRICKS_ACCOUNT_ID:?DATABRICKS_ACCOUNT_ID repository variable is not set (WI005 3.2)}"
         : "${DATABRICKS_ACCOUNT_CLIENT_ID:?DATABRICKS_ACCOUNT_CLIENT_ID repository variable is not set (WI005 3.2)}"
+        : "${SINGLE_USER_EMAIL:?SINGLE_USER_EMAIL repository secret is not set (WI005 3.2)}"
 
     - name: Assume AWS role via GitHub OIDC
       uses: aws-actions/configure-aws-credentials@v4
@@ -40,4 +45,5 @@ runs:
         echo "DATABRICKS_HOST=https://accounts.cloud.databricks.com" >> "$GITHUB_ENV"
         echo "TF_VAR_databricks_account_id=${{ inputs.databricks-account-id }}" >> "$GITHUB_ENV"
         echo "TF_VAR_databricks_client_id=${{ inputs.databricks-client-id }}" >> "$GITHUB_ENV"
+        echo "TF_VAR_single_user_email=${{ inputs.single-user-email }}" >> "$GITHUB_ENV"
         echo "DATABRICKS_AUTH_TYPE=github-oidc" >> "$GITHUB_ENV"

@@ -7,3 +7,8 @@ variable "databricks_client_id" {
   description = "Client id (application id) of the Databricks service principal that authenticates via GitHub OIDC federation (D012)."
   type        = string
 }
+
+variable "single_user_email" {
+  description = "Email of the single user of the benchmark cluster. The person who runs workloads from the workspace UI."
+  type        = string
+}

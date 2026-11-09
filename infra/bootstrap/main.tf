@@ -181,6 +181,10 @@ data "aws_iam_policy_document" "gha_permissions" {
       "ec2:DeleteNetworkAcl",
       "ec2:CreateNetworkAclEntry",
       "ec2:DeleteNetworkAclEntry",
+      "ec2:DescribeInternetGateways",
+      "ec2:DescribeSecurityGroupRules",
+      "ec2:DescribeAddressesAttribute",
+      "ec2:DescribePrefixLists",
     ]
     resources = ["*"]
   }

@@ -1,11 +1,5 @@
 name: Infra
 
-# Deploy path for the Databricks-on-AWS platform (D004): plan on PR as a
-# status check, everything else on dispatch. Merging to main deploys
-# nothing; apply and destroy run only when you dispatch them.
-# Destroy runs Terraform's own reverse-dependency order, with the
-# empty-account checks in the same job so they cannot be skipped.
-
 on:
   pull_request:
     paths:
@@ -14,20 +8,23 @@ on:
       - .github/actions/infra-auth/**
   workflow_dispatch:
     inputs:
-      action:
-        description: "Action"
-        required: true
-        default: "plan"
-        type: choice
-        options: [plan, apply, destroy]
+      plan:
+        description: "Plan"
+        required: false
+        default: false
+        type: boolean
+      apply:
+        description: "Apply"
+        required: false
+        default: false
+        type: boolean
+      destroy:
+        description: "Destroy"
+        required: false
+        default: false
+        type: boolean
 
-# The Databricks federation policy (D012) pins the subject to
-# environment:benchmark, so every job that authenticates to Databricks
-# must declare this environment. The environment's required reviewer
-# makes D009's cost confirmation mechanical for apply/destroy. The plan
-# job also stays in the environment: Databricks data sources resolve at
-# plan time, and the federation policy admits only this environment's
-# tokens — moving plan out would 401 the first plan.
+
 permissions:
   contents: read
   id-token: write
@@ -43,7 +40,7 @@ jobs:
   plan:
     if: >-
       github.event_name == 'pull_request' ||
-      (github.event_name == 'workflow_dispatch' && inputs.action == 'plan')
+      (github.event_name == 'workflow_dispatch' && inputs.plan)
     runs-on: ubuntu-latest
     environment: benchmark
     steps:
@@ -61,7 +58,7 @@ jobs:
           mise exec -- terraform -chdir=infra/main plan -input=false -out=tfplan
 
   apply:
-    if: github.event_name == 'workflow_dispatch' && inputs.action == 'apply'
+    if: github.event_name == 'workflow_dispatch' && inputs.apply
     runs-on: ubuntu-latest
     environment: benchmark
     steps:
@@ -82,7 +79,7 @@ jobs:
         run: mise exec -- terraform -chdir=infra/main apply -input=false -auto-approve tfplan
 
   destroy:
-    if: github.event_name == 'workflow_dispatch' && inputs.action == 'destroy'
+    if: github.event_name == 'workflow_dispatch' && inputs.destroy
     runs-on: ubuntu-latest
     environment: benchmark
     steps:

@@ -92,6 +92,7 @@ data "aws_iam_policy_document" "gha_permissions" {
       "s3:DeleteBucket",
       "s3:GetBucketLocation",
       "s3:GetBucketVersioning",
+      "s3:GetBucketAcl",
       "s3:ListBucket",
       "s3:ListBucketVersions",
       "s3:GetObject",

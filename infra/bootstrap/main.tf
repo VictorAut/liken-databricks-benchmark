@@ -81,7 +81,7 @@ resource "aws_iam_role" "gha" {
 
 # The same role runs plan, apply, and destroy from CI, so it carries the
 # full lifecycle of the benchmark stack's resource types. Name-scoped
-# where the service supports it; S3 is scoped to the two buckets the
+# where the service supports it; S3 is scoped to the three buckets the
 # platform owns.
 data "aws_iam_policy_document" "gha_permissions" {
   # S3: state bucket (with lockfiles) and the benchmark buckets.

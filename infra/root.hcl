@@ -5,13 +5,19 @@
 # bucket cannot hold the state of its own creation.
 
 # Remote state in the bucket the bootstrap unit creates (D003: S3
-# native lockfiles, no DynamoDB). Each unit sets its own `key`.
+# native lockfiles, no DynamoDB). The key derives from each unit's
+# include path, so state never merges between units.
 remote_state {
   backend = "s3"
 
+  generate = {
+    path      = "backend.tf"
+    if_exists = "overwrite_terragrunt"
+  }
+
   config = {
     bucket       = "liken-benchmark-tfstate-eu-south-2"
-    key          = "placeholder/terraform.tfstate"
+    key          = "${path_relative_to_include()}/terraform.tfstate"
     region       = "eu-south-2"
     use_lockfile = true
   }
@@ -38,10 +44,10 @@ terraform {
       version = "= 1.141.0"
     }
   }
+}
 
-  provider "aws" {
-    region = "eu-south-2"
-  }
+provider "aws" {
+  region = "eu-south-2"
 }
 EOF
 }

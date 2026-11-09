@@ -15,4 +15,7 @@ coverage.*
 
 site/
 
-.memsearch
+.memsearch.terragrunt-cache/
+infra/.terragrunt-cache/
+.terragrunt-cache/
+.terraform/

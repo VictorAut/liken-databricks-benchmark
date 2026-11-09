@@ -1,27 +1,15 @@
 # Shared Terragrunt configuration included by every unit under infra/.
 #
-# The bootstrap unit (infra/bootstrap) does NOT include this file: its
-# remote_state points at the very bucket this file names, and that
-# bucket cannot hold the state of its own creation.
-
-# Remote state in the bucket the bootstrap unit creates (D003: S3
-# native lockfiles, no DynamoDB). The key derives from each unit's
-# include path, so state never merges between units.
-remote_state {
-  backend = "s3"
-
-  generate = {
-    path      = "backend.tf"
-    if_exists = "overwrite_terragrunt"
-  }
-
-  config = {
-    bucket       = "liken-benchmark-tfstate-eu-south-2"
-    key          = "${path_relative_to_include()}/terraform.tfstate"
-    region       = "eu-south-2"
-    use_lockfile = true
-  }
-}
+# The bootstrap unit (infra/bootstrap) does NOT include this file: it
+# runs on local state, and its bucket cannot hold the state of its own
+# creation.
+#
+# Remote state (D003: S3 native lockfiles, no DynamoDB) is NOT declared
+# here. Stacks copy units into generated paths, so a path-derived key
+# here would split state between generated and canonical copies; instead
+# every unit declares its own remote_state block with an explicit key
+# (see the plan's structural decision on state keys). Units share only
+# the bucket name below.
 
 # Provider requirements generated into every unit. The Databricks
 # provider is pinned in version only; modules that use it configure it

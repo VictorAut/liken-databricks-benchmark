@@ -9,17 +9,14 @@ on:
   workflow_dispatch:
     inputs:
       plan:
-        description: "Plan"
         required: false
         default: false
         type: boolean
       apply:
-        description: "Apply"
         required: false
         default: false
         type: boolean
       destroy:
-        description: "Destroy"
         required: false
         default: false
         type: boolean

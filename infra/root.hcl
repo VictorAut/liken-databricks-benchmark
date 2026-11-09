@@ -11,6 +11,20 @@
 # (see the plan's structural decision on state keys). Units share only
 # the bucket name below.
 
+# Backend stub: units declare their remote_state in terragrunt.hcl
+# (explicit key per unit); Terraform needs a matching backend block,
+# which Terragrunt fills in at generate time.
+generate "backend" {
+  path      = "backend.tf"
+  if_exists = "overwrite_terragrunt"
+
+  contents = <<EOF
+terraform {
+  backend "s3" {}
+}
+EOF
+}
+
 # Provider requirements generated into every unit. The Databricks
 # provider is pinned in version only; modules that use it configure it
 # themselves from variables.

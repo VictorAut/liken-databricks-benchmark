@@ -30,9 +30,6 @@ concurrency:
   group: infra-${{ github.ref }}
   cancel-in-progress: false
 
-env:
-  AWS_REGION: eu-central-1
-
 jobs:
   plan:
     if: >-
@@ -43,7 +40,7 @@ jobs:
     environment: benchmark
     steps:
       - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v2
+      - uses: jdx/mise-action@v5
       - uses: ./.github/actions/infra-auth
         with:
           aws-role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
@@ -73,7 +70,7 @@ jobs:
     environment: benchmark
     steps:
       - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v2
+      - uses: jdx/mise-action@v5
       - uses: ./.github/actions/infra-auth
         with:
           aws-role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
@@ -103,7 +100,7 @@ jobs:
       - name: checkout
         uses: actions/checkout@v4
       - name: mise tools
-        uses: jdx/mise-action@v2
+        uses: jdx/mise-action@v5
       - name: infra auth
         uses: ./.github/actions/infra-auth
         with:
@@ -120,7 +117,7 @@ jobs:
       # considered done unless these pass.
       - name: Verify no NAT gateway remains
         run: |
-          test "$(mise exec -- aws ec2 describe-nat-gateways --region eu-central-1 \
+          test "$(mise exec -- aws ec2 describe-nat-gateways \
             --filter Name=state,Values=available \
             --query 'length(NatGateways)' --output text)" = "0"
 
@@ -133,5 +130,5 @@ jobs:
 
       - name: Verify only the default VPC remains
         run: |
-          test "$(mise exec -- aws ec2 describe-vpcs --region eu-central-1 \
+          test "$(mise exec -- aws ec2 describe-vpcs \
             --query 'length(Vpcs[?!(IsDefault == `true`)])' --output text)" = "0"

@@ -302,9 +302,10 @@ resource "null_resource" "wait_for_workspace" {
   }
 
   # The workspace URL can lag behind creation, so wait until it answers.
+  # workspace_url already carries the https scheme.
   provisioner "local-exec" {
     when    = create
-    command = "for i in $(seq 1 30); do code=$(curl -s -o /dev/null -w '%%{http_code}' \"https://${databricks_mws_workspaces.this.workspace_url}\") && [ \"$code\" -ge 200 ] && [ \"$code\" -lt 500 ] && exit 0; sleep 10; done; echo workspace URL never became reachable; exit 1"
+    command = "for i in $(seq 1 30); do code=$(curl -s -o /dev/null -w '%%{http_code}' \"${databricks_mws_workspaces.this.workspace_url}\") && [ \"$code\" -ge 200 ] && [ \"$code\" -lt 500 ] && exit 0; sleep 10; done; echo workspace URL never became reachable; exit 1"
   }
 }
 

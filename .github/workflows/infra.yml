@@ -107,7 +107,9 @@ jobs:
           databricks-client-id: ${{ vars.DATABRICKS_ACCOUNT_CLIENT_ID }}
 
       - name: Destroy
-        run: mise exec -- terraform -chdir=infra/main destroy -input=false -auto-approve
+        run: |
+          mise exec -- terraform -chdir=infra/main init -input=false
+          mise exec -- terraform -chdir=infra/main destroy -input=false -auto-approve
 
       # Empty-account checks in the same job: teardown cannot be
       # considered done unless these pass.

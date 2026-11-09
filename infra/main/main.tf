@@ -253,3 +253,57 @@ resource "aws_vpc_endpoint" "sts" {
 
   tags = { Name = "liken-benchmark-sts-endpoint" }
 }
+
+resource "databricks_mws_networks" "this" {
+  provider = databricks.accounts
+
+  account_id         = var.databricks_account_id
+  network_name       = "${local.workspace_name}-network"
+  security_group_ids = [aws_default_security_group.this.id]
+  subnet_ids         = aws_subnet.private[*].id
+  vpc_id             = aws_vpc.this.id
+}
+
+resource "databricks_mws_storage_configurations" "this" {
+  provider = databricks.accounts
+
+  account_id                 = var.databricks_account_id
+  bucket_name                = aws_s3_bucket.root.bucket
+  storage_configuration_name = "${local.workspace_name}-storage"
+}
+
+resource "databricks_mws_workspaces" "this" {
+  provider = databricks.accounts
+
+  account_id               = var.databricks_account_id
+  workspace_name           = local.workspace_name
+  aws_region               = "eu-south-2"
+  credentials_id           = databricks_mws_credentials.this.credentials_id
+  storage_configuration_id = databricks_mws_storage_configurations.this.storage_configuration_id
+  network_id               = databricks_mws_networks.this.network_id
+
+  # The AWS provider's default_tags do not apply here.
+  custom_tags = {
+    Project   = "liken-databricks-benchmark"
+    ManagedBy = "Terraform"
+  }
+
+  depends_on = [
+    databricks_mws_credentials.this,
+    databricks_mws_storage_configurations.this,
+    databricks_mws_networks.this,
+  ]
+}
+
+resource "null_resource" "wait_for_workspace" {
+  triggers = {
+    workspace_id  = databricks_mws_workspaces.this.workspace_id
+    workspace_url = databricks_mws_workspaces.this.workspace_url
+  }
+
+  # The workspace URL can lag behind creation, so wait until it answers.
+  provisioner "local-exec" {
+    when    = create
+    command = "for i in $(seq 1 30); do code=$(curl -s -o /dev/null -w '%%{http_code}' \"https://${databricks_mws_workspaces.this.workspace_url}\") && [ \"$code\" -ge 200 ] && [ \"$code\" -lt 500 ] && exit 0; sleep 10; done; echo workspace URL never became reachable; exit 1"
+  }
+}

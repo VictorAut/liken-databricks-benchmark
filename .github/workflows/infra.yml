@@ -20,7 +20,7 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: "Verb to run on both stacks (plan | apply | destroy)"
+        description: "Action to run on infra/main (plan | apply | destroy)"
         required: true
         default: "plan"
         type: choice
@@ -78,9 +78,7 @@ jobs:
           mise exec -- terraform -chdir=infra/main plan -input=false -out=tfplan
 
       - name: Apply
-        run: |
-          mise exec -- terraform -chdir=infra/main init -input=false
-          mise exec -- terraform -chdir=infra/main apply -input=false -auto-approve tfplan
+        run: mise exec -- terraform -chdir=infra/main apply -input=false -auto-approve tfplan
 
   destroy:
     if: github.event_name == 'workflow_dispatch' && inputs.action == 'destroy'
@@ -95,7 +93,7 @@ jobs:
         uses: ./.github/actions/infra-auth
 
       - name: Destroy
-        run: mise exec -- terraform -chdir=infra/main destroy -input=false
+        run: mise exec -- terraform -chdir=infra/main destroy -input=false -auto-approve
 
       # Empty-account checks in the same job: teardown cannot be
       # considered done unless these pass.

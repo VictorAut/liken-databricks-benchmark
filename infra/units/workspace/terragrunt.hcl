@@ -1,7 +1,11 @@
 # Workspace unit: Databricks workspace on the customer-managed VPC.
 # Consumes iam/storage outputs via cross-stack dependency at their
-# canonical unit paths (resolved from remote state because those units
-# pin explicit keys, R9), and vpc outputs intra-stack.
+# canonical unit paths, anchored to the repository root
+# (get_repo_root()): a relative path would resolve differently under
+# stacks (which copy units into generated paths) than in the canonical
+# tree. Remote-state resolution works because those units pin explicit
+# state keys (R9).
+# Consumes vpc outputs intra-stack.
 
 include "root" {
   path = find_in_parent_folders("root.hcl")
@@ -35,7 +39,7 @@ dependency "vpc" {
 }
 
 dependency "iam" {
-  config_path = "../../units/iam"
+  config_path = "${get_repo_root()}/infra/units/iam"
 
   mock_outputs = {
     credentials_id = "mock-credentials-id"
@@ -45,7 +49,7 @@ dependency "iam" {
 }
 
 dependency "storage" {
-  config_path = "../../units/storage"
+  config_path = "${get_repo_root()}/infra/units/storage"
 
   mock_outputs = {
     root_bucket_name = "mock-bucket"

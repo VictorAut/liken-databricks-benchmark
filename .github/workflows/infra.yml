@@ -37,7 +37,8 @@ jobs:
   plan:
     if: >-
       github.event_name == 'pull_request' ||
-      (github.event_name == 'workflow_dispatch' && inputs.plan)
+      (github.event_name == 'workflow_dispatch' &&
+        (inputs.plan || inputs.apply))
     runs-on: ubuntu-latest
     environment: benchmark
     steps:
@@ -53,9 +54,21 @@ jobs:
         run: |
           mise exec -- terraform -chdir=infra/main init -input=false
           mise exec -- terraform -chdir=infra/main plan -input=false -out=tfplan
+
+      # The apply job must apply exactly this plan, not a fresh one.
+      - name: Upload plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan
+          path: infra/main/tfplan
+          retention-days: 1
+          if-no-files-found: error
 
   apply:
-    if: github.event_name == 'workflow_dispatch' && inputs.apply
+    needs: plan
+    if: >-
+      github.event_name == 'workflow_dispatch' && inputs.apply &&
+      !failure() && !cancelled()
     runs-on: ubuntu-latest
     environment: benchmark
     steps:
@@ -67,10 +80,12 @@ jobs:
           databricks-account-id: ${{ vars.DATABRICKS_ACCOUNT_ID }}
           databricks-client-id: ${{ vars.DATABRICKS_ACCOUNT_CLIENT_ID }}
 
-      - name: Plan
-        run: |
-          mise exec -- terraform -chdir=infra/main init -input=false
-          mise exec -- terraform -chdir=infra/main plan -input=false -out=tfplan
+      # Apply consumes the exact plan produced by the plan job.
+      - name: Download plan
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan
+          path: infra/main
 
       - name: Apply
         run: mise exec -- terraform -chdir=infra/main apply -input=false -auto-approve tfplan

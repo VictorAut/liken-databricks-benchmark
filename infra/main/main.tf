@@ -43,7 +43,7 @@ resource "databricks_mws_credentials" "this" {
 }
 
 resource "aws_s3_bucket" "root" {
-  bucket        = "liken-benchmark-dbx-root-eu-south-2"
+  bucket        = "liken-benchmark-dbx-root-eu-central-1"
   force_destroy = true
 }
 
@@ -87,7 +87,7 @@ resource "aws_s3_bucket_policy" "root" {
 }
 
 resource "aws_s3_bucket" "data" {
-  bucket        = "liken-benchmark-data-eu-south-2"
+  bucket        = "liken-benchmark-data-eu-central-1"
   force_destroy = true
 }
 
@@ -233,7 +233,7 @@ resource "aws_route" "private_nat" {
 # S3 gateway endpoint: cluster→S3 traffic bypasses the NAT.
 resource "aws_vpc_endpoint" "s3" {
   vpc_id            = aws_vpc.this.id
-  service_name      = "com.amazonaws.eu-south-2.s3"
+  service_name      = "com.amazonaws.eu-central-1.s3"
   vpc_endpoint_type = "Gateway"
 
   route_table_ids = aws_route_table.private[*].id
@@ -244,7 +244,7 @@ resource "aws_vpc_endpoint" "s3" {
 # STS interface endpoint: Databricks credentials flows stay off the NAT.
 resource "aws_vpc_endpoint" "sts" {
   vpc_id            = aws_vpc.this.id
-  service_name      = "com.amazonaws.eu-south-2.sts"
+  service_name      = "com.amazonaws.eu-central-1.sts"
   vpc_endpoint_type = "Interface"
 
   subnet_ids          = aws_subnet.private[*].id
@@ -277,7 +277,7 @@ resource "databricks_mws_workspaces" "this" {
 
   account_id               = var.databricks_account_id
   workspace_name           = local.workspace_name
-  aws_region               = "eu-south-2"
+  aws_region               = "eu-central-1"
   credentials_id           = databricks_mws_credentials.this.credentials_id
   storage_configuration_id = databricks_mws_storage_configurations.this.storage_configuration_id
   network_id               = databricks_mws_networks.this.network_id

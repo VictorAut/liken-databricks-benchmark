@@ -37,7 +37,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  AWS_REGION: eu-south-2
+  AWS_REGION: eu-central-1
 
 jobs:
   plan:
@@ -104,7 +104,7 @@ jobs:
       # considered done unless these pass.
       - name: Verify no NAT gateway remains
         run: |
-          test "$(mise exec -- aws ec2 describe-nat-gateways --region eu-south-2 \
+          test "$(mise exec -- aws ec2 describe-nat-gateways --region eu-central-1 \
             --filters Name=state,Values=available \
             --query 'length(NatGateways)' --output text)" = "0"
 
@@ -117,5 +117,5 @@ jobs:
 
       - name: Verify only the default VPC remains
         run: |
-          test "$(mise exec -- aws ec2 describe-vpcs --region eu-south-2 \
+          test "$(mise exec -- aws ec2 describe-vpcs --region eu-central-1 \
             --query 'length(Vpcs[?!(IsDefault == `true`)])' --output text)" = "0"

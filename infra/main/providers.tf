@@ -22,7 +22,7 @@ terraform {
 }
 
 provider "aws" {
-  region = "eu-south-2"
+  region = "eu-central-1"
 
   # Tag every taggable AWS resource of this project.
   default_tags {

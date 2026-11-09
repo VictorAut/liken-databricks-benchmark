@@ -6,3 +6,10 @@ tasks:
     cmds:
       - mise install
       - uv sync --project app --python "$(mise current python)"
+
+  bootstrap:
+    desc: Apply the bootstrap stack (state bucket, GHA OIDC role)
+    dir: infra/bootstrap
+    cmds:
+      - AWS_REGION=eu-central-1 mise exec -- terraform apply -input=false -auto-approve
+

@@ -31,7 +31,7 @@ runs:
       uses: aws-actions/configure-aws-credentials@v4
       with:
         role-to-assume: ${{ inputs.aws-role-to-assume }}
-        aws-region: eu-south-2
+        aws-region: eu-central-1
         role-session-name: gha-benchmark
 
     - name: Export Databricks provider env vars

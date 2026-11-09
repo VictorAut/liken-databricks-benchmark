@@ -116,7 +116,7 @@ jobs:
       - name: Verify no NAT gateway remains
         run: |
           test "$(mise exec -- aws ec2 describe-nat-gateways --region eu-central-1 \
-            --filters Name=state,Values=available \
+            --filter Name=state,Values=available \
             --query 'length(NatGateways)' --output text)" = "0"
 
       - name: Verify no benchmark buckets remain

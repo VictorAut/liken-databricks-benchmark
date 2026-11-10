@@ -37,6 +37,11 @@ jobs:
   # or as the first half of an apply. No environment gate: plan is
   # read-only, and PR runs must not wait on environment approval.
   #
+  # The plan implementation lives in the reusable terraform-plan
+  # workflow: it is the federation-policy subject (job_workflow_ref),
+  # so dispatch plans authenticate from any
+  # branch. The job runs the caller's commit; see that file.
+  #
   # PRs receive AWS and Databricks credentials by design. The repo has
   # a single committer, plan only reads (state refresh), and fork PRs
   # get no secrets from GitHub anyway. Residual risk: the Databricks
@@ -47,30 +52,13 @@ jobs:
       github.event_name == 'pull_request' ||
       (github.event_name == 'workflow_dispatch' &&
         (inputs.plan || inputs.apply))
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v5
-      - uses: ./.github/actions/infra-auth
-        with:
-          aws-role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
-          databricks-account-id: ${{ vars.DATABRICKS_ACCOUNT_ID }}
-          databricks-client-id: ${{ vars.DATABRICKS_ACCOUNT_CLIENT_ID }}
-          single-user-email: ${{ secrets.SINGLE_USER_EMAIL }}
-
-      - name: Init
-        run: mise exec -- terraform -chdir=infra/main init -input=false
-      - name: Plan
-        run: mise exec -- terraform -chdir=infra/main plan -input=false -out=tfplan
-
-      # Apply consumes this exact plan; it never re-plans.
-      - name: Upload plan
-        uses: actions/upload-artifact@v4
-        with:
-          name: tfplan
-          path: infra/main/tfplan
-          retention-days: 1
-          if-no-files-found: error
+    permissions:
+      contents: read
+      id-token: write
+    # Secrets are not inherited by called workflows; SINGLE_USER_EMAIL
+    # is needed by the infra-auth step inside the reusable workflow.
+    secrets: inherit
+    uses: VictorAut/liken-databricks-benchmark/.github/workflows/terraform-plan.yml@main
 
   # Applies the plan produced in this run. Unlocked only by the manual
   # apply input; the protected benchmark environment gates the job.

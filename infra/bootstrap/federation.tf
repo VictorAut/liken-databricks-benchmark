@@ -17,3 +17,17 @@ resource "databricks_service_principal_federation_policy" "plan" {
     subject_claim = "job_workflow_ref"
   }
 }
+
+# The apply/destroy subject: tokens minted in the protected GitHub
+# environment "benchmark". Created manually before trust was
+# code-managed; imported so all standing trust lives in code. It has
+# no description in the account, so none is set here.
+resource "databricks_service_principal_federation_policy" "benchmark_env" {
+  service_principal_id = 76997434750825
+
+  oidc_policy = {
+    issuer    = "https://token.actions.githubusercontent.com"
+    audiences = ["https://github.com/VictorAut"]
+    subject   = "repo:VictorAut@51970549/liken-databricks-benchmark@1446713409:environment:benchmark"
+  }
+}

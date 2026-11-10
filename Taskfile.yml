@@ -7,11 +7,25 @@ tasks:
       - mise install
       - uv sync --project app --python "$(mise current python)"
 
-  bootstrap:
-    desc: Apply the bootstrap stack (state bucket, GHA OIDC role)
+  infra:bootstrap:auth:
+    desc: Check AWS and Databricks CLI auth for bootstrap tasks
+    cmds:
+      - aws sts get-caller-identity
+      - databricks auth token --account-id 55a20437-0418-4752-b516-94ac43b973b3
+
+  infra:bootstrap:plan:
+    desc: Plan the bootstrap stack
+    dir: infra/bootstrap
+    deps: [infra:bootstrap:auth]
+    cmds:
+      - mise exec -- terraform plan
+
+  infra:bootstrap:apply:
+    desc: Apply the bootstrap stack
     dir: infra/bootstrap
     cmds:
-      - mise exec -- terraform apply -input=false -auto-approve
+      - task: infra:bootstrap:plan
+      - cmd: mise exec -- terraform apply -input=false -auto-approve
 
   infra:verify-destroyed:
     desc: Verify teardown left no billable resources (exits 1 otherwise)

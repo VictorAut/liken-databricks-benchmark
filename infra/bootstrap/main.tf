@@ -85,50 +85,13 @@ resource "aws_iam_role" "gha" {
 
 
 data "aws_iam_policy_document" "gha_permissions" {
+  # Every bucket named liken-benchmark-* (tfstate, dbx root, data).
   statement {
-    sid = "S3Lifecycle"
-    actions = [
-      "s3:CreateBucket",
-      "s3:DeleteBucket",
-      "s3:GetBucketLocation",
-      "s3:GetBucketVersioning",
-      "s3:GetBucketAcl",
-      "s3:ListBucket",
-      "s3:ListBucketVersions",
-      "s3:GetObject",
-      "s3:GetObjectVersion",
-      "s3:PutObject",
-      "s3:DeleteObject",
-      "s3:DeleteObjectVersion",
-      "s3:GetBucketPublicAccessBlock",
-      "s3:PutBucketPublicAccessBlock",
-      "s3:GetEncryptionConfiguration",
-      "s3:PutEncryptionConfiguration",
-      "s3:GetBucketPolicy",
-      "s3:PutBucketPolicy",
-      "s3:DeleteBucketPolicy",
-      "s3:PutBucketVersioning",
-      "s3:GetBucketTagging",
-      "s3:PutBucketTagging",
-      "s3:GetBucketOwnershipControls",
-      "s3:PutBucketOwnershipControls",
-      # The full refresh read set of aws_s3_bucket.
-      "s3:GetBucketCors",
-      "s3:GetBucketWebsite",
-      "s3:GetAccelerateConfiguration",
-      "s3:GetBucketRequestPayment",
-      "s3:GetBucketLogging",
-      "s3:GetLifecycleConfiguration",
-      "s3:GetReplicationConfiguration",
-      "s3:GetBucketObjectLockConfiguration",
-    ]
+    sid     = "S3Buckets"
+    actions = ["s3:*"]
     resources = [
-      "arn:aws:s3:::liken-benchmark-tfstate-eu-central-1",
-      "arn:aws:s3:::liken-benchmark-tfstate-eu-central-1/*",
-      "arn:aws:s3:::liken-benchmark-dbx-root-eu-central-1",
-      "arn:aws:s3:::liken-benchmark-dbx-root-eu-central-1/*",
-      "arn:aws:s3:::liken-benchmark-data-eu-central-1",
-      "arn:aws:s3:::liken-benchmark-data-eu-central-1/*",
+      "arn:aws:s3:::liken-benchmark-*",
+      "arn:aws:s3:::liken-benchmark-*/*",
     ]
   }
 
@@ -144,84 +107,23 @@ data "aws_iam_policy_document" "gha_permissions" {
     resources = ["*"]
   }
 
-  # VPC/EC2: the benchmark VPC, subnets, NAT, endpoints, IGW.
+  # EC2 does not support resource-level permissions for most actions.
   statement {
-    sid = "EC2VPC"
-    actions = [
-      "ec2:CreateVpc",
-      "ec2:DeleteVpc",
-      "ec2:ModifyVpcAttribute",
-      "ec2:DescribeVpcs",
-      "ec2:DescribeVpcAttribute",
-      "ec2:CreateSubnet",
-      "ec2:DeleteSubnet",
-      "ec2:DescribeSubnets",
-      "ec2:CreateRouteTable",
-      "ec2:DeleteRouteTable",
-      "ec2:DescribeRouteTables",
-      "ec2:CreateRoute",
-      "ec2:DeleteRoute",
-      "ec2:AssociateRouteTable",
-      "ec2:DisassociateRouteTable",
-      "ec2:CreateInternetGateway",
-      "ec2:DeleteInternetGateway",
-      "ec2:AttachInternetGateway",
-      "ec2:DetachInternetGateway",
-      "ec2:CreateNatGateway",
-      "ec2:DeleteNatGateway",
-      "ec2:DescribeNatGateways",
-      "ec2:CreateEgressOnlyInternetGateway",
-      "ec2:DeleteEgressOnlyInternetGateway",
-      "ec2:AllocateAddress",
-      "ec2:ReleaseAddress",
-      "ec2:DescribeAddresses",
-      "ec2:AssociateAddress",
-      "ec2:DisassociateAddress",
-      "ec2:CreateVpcEndpoint",
-      "ec2:DeleteVpcEndpoints",
-      "ec2:DescribeVpcEndpoints",
-      "ec2:DescribeAvailabilityZones",
-      "ec2:DescribeSecurityGroups",
-      "ec2:CreateSecurityGroup",
-      "ec2:DeleteSecurityGroup",
-      "ec2:AuthorizeSecurityGroupIngress",
-      "ec2:RevokeSecurityGroupIngress",
-      "ec2:AuthorizeSecurityGroupEgress",
-      "ec2:RevokeSecurityGroupEgress",
-      "ec2:CreateTags",
-      "ec2:DeleteTags",
-      "ec2:DescribeNetworkInterfaces",
-      "ec2:DescribeNetworkAcls",
-      "ec2:CreateNetworkAcl",
-      "ec2:DeleteNetworkAcl",
-      "ec2:CreateNetworkAclEntry",
-      "ec2:DeleteNetworkAclEntry",
-      "ec2:DescribeInternetGateways",
-      "ec2:DescribeSecurityGroupRules",
-      "ec2:DescribeAddressesAttribute",
-      "ec2:DescribePrefixLists",
-    ]
+    sid       = "EC2"
+    actions   = ["ec2:*"]
     resources = ["*"]
   }
 
-  # IAM: the cross-account role and its policy, name-scoped.
+  # Roles, policies, and instance profiles created for the benchmark.
+  # iam:PassRole is here because the Databricks provider passes the
+  # cross-account role/instance profile on workspace setup.
   statement {
-    sid = "IAMLifecycle"
-    actions = [
-      "iam:CreateRole",
-      "iam:DeleteRole",
-      "iam:GetRole",
-      "iam:UpdateRole",
-      "iam:PutRolePolicy",
-      "iam:GetRolePolicy",
-      "iam:DeleteRolePolicy",
-      "iam:ListRolePolicies",
-      "iam:ListInstanceProfilesForRole",
-      "iam:ListAttachedRolePolicies",
-      "iam:TagRole",
-      "iam:UntagRole",
+    actions = ["iam:*"]
+    resources = [
+      "arn:aws:iam::355162269108:role/liken-benchmark-*",
+      "arn:aws:iam::355162269108:policy/liken-benchmark-*",
+      "arn:aws:iam::355162269108:instance-profile/liken-benchmark-*",
     ]
-    resources = ["arn:aws:iam::355162269108:role/liken-benchmark-*"]
   }
 
   # Databricks workspace creation reads the account id through STS; the

@@ -26,18 +26,28 @@ permissions:
   contents: read
   id-token: write
 
+# One state bucket, one account: every run serialises, whatever branch
+# it comes from. Queued, not cancelled.
 concurrency:
-  group: infra-${{ github.ref }}
+  group: infra
   cancel-in-progress: false
 
 jobs:
+  # Read-only plan: on PRs for review, on dispatch as plan inspection
+  # or as the first half of an apply. No environment gate: plan is
+  # read-only, and PR runs must not wait on environment approval.
+  #
+  # PRs receive AWS and Databricks credentials by design. The repo has
+  # a single committer, plan only reads (state refresh), and fork PRs
+  # get no secrets from GitHub anyway. Residual risk: the Databricks
+  # service principal is account-admin. Scope it down before adding
+  # collaborators.
   plan:
     if: >-
       github.event_name == 'pull_request' ||
       (github.event_name == 'workflow_dispatch' &&
         (inputs.plan || inputs.apply))
     runs-on: ubuntu-latest
-    environment: benchmark
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v5
@@ -48,12 +58,12 @@ jobs:
           databricks-client-id: ${{ vars.DATABRICKS_ACCOUNT_CLIENT_ID }}
           single-user-email: ${{ secrets.SINGLE_USER_EMAIL }}
 
+      - name: Init
+        run: mise exec -- terraform -chdir=infra/main init -input=false
       - name: Plan
-        run: |
-          mise exec -- terraform -chdir=infra/main init -input=false
-          mise exec -- terraform -chdir=infra/main plan -input=false -out=tfplan
+        run: mise exec -- terraform -chdir=infra/main plan -input=false -out=tfplan
 
-      # The apply job must apply exactly this plan, not a fresh one.
+      # Apply consumes this exact plan; it never re-plans.
       - name: Upload plan
         uses: actions/upload-artifact@v4
         with:
@@ -62,6 +72,8 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
+  # Applies the plan produced in this run. Unlocked only by the manual
+  # apply input; the protected benchmark environment gates the job.
   apply:
     needs: plan
     if: >-
@@ -79,59 +91,78 @@ jobs:
           databricks-client-id: ${{ vars.DATABRICKS_ACCOUNT_CLIENT_ID }}
           single-user-email: ${{ secrets.SINGLE_USER_EMAIL }}
 
-      # Apply consumes the exact plan produced by the plan job.
       - name: Download plan
         uses: actions/download-artifact@v4
         with:
           name: tfplan
           path: infra/main
 
-      # Apply needs provider plugins installed; init is idempotent and
-      # does not touch the downloaded plan.
+      # Provider plugins for the plan file. init is idempotent and does
+      # not touch the downloaded plan; the lock file pins the provider
+      # versions to exactly the ones that produced the plan.
       - name: Init
         run: mise exec -- terraform -chdir=infra/main init -input=false
+
+      # Nothing billable is created on top of a dirty account (D009).
+      # This also blocks resume-after-partial-apply: resume means
+      # destroy first.
+      - name: Verify clean account
+        run: mise exec -- task infra:verify-destroyed
 
       - name: Apply
         run: mise exec -- terraform -chdir=infra/main apply -input=false -auto-approve tfplan
 
+  # Teardown, dispatched only. Bounded retry absorbs ENI/subnet races
+  # (DependencyViolation); the strict verify task is the gate.
   destroy:
     if: github.event_name == 'workflow_dispatch' && inputs.destroy
     runs-on: ubuntu-latest
     environment: benchmark
     steps:
-      - name: checkout
-        uses: actions/checkout@v4
-      - name: mise tools
-        uses: jdx/mise-action@v5
-      - name: infra auth
-        uses: ./.github/actions/infra-auth
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v5
+      - uses: ./.github/actions/infra-auth
         with:
           aws-role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
           databricks-account-id: ${{ vars.DATABRICKS_ACCOUNT_ID }}
           databricks-client-id: ${{ vars.DATABRICKS_ACCOUNT_CLIENT_ID }}
           single-user-email: ${{ secrets.SINGLE_USER_EMAIL }}
 
-      - name: Destroy
-        run: |
-          mise exec -- terraform -chdir=infra/main init -input=false
-          mise exec -- terraform -chdir=infra/main destroy -input=false -auto-approve
+      - name: Init
+        run: mise exec -- terraform -chdir=infra/main init -input=false
 
-      # Empty-account checks in the same job: teardown cannot be
-      # considered done unless these pass.
-      - name: Verify no NAT gateway remains
-        run: |
-          test "$(mise exec -- aws ec2 describe-nat-gateways \
-            --filter Name=state,Values=available \
-            --query 'length(NatGateways)' --output text)" = "0"
+      - name: Destroy (attempt 1/3)
+        id: destroy1
+        continue-on-error: true
+        run: mise exec -- terraform -chdir=infra/main destroy -input=false -auto-approve
+      - name: Wait before retry
+        if: steps.destroy1.outcome == 'failure'
+        run: sleep 60
+      - name: Destroy (attempt 2/3)
+        id: destroy2
+        if: steps.destroy1.outcome == 'failure'
+        continue-on-error: true
+        run: mise exec -- terraform -chdir=infra/main destroy -input=false -auto-approve
+      - name: Wait before retry
+        if: steps.destroy2.outcome == 'failure'
+        run: sleep 60
+      - name: Destroy (attempt 3/3)
+        id: destroy3
+        if: steps.destroy2.outcome == 'failure'
+        continue-on-error: true
+        run: mise exec -- terraform -chdir=infra/main destroy -input=false -auto-approve
 
-      - name: Verify no benchmark buckets remain
+      - name: Destroy failed after 3 attempts
+        if: >-
+          steps.destroy1.outcome != 'success' &&
+          steps.destroy2.outcome != 'success' &&
+          steps.destroy3.outcome != 'success'
         run: |
-          if mise exec -- aws s3 ls | grep liken-benchmark | grep -v tfstate; then
-            echo "benchmark buckets still exist:" >&2
-            exit 1
-          fi
-
-      - name: Verify only the default VPC remains
-        run: |
-          test "$(mise exec -- aws ec2 describe-vpcs \
-            --query 'length(Vpcs[?!(IsDefault == `true`)])' --output text)" = "0"
+          echo "destroy failed on all 3 attempts" >&2
+          exit 1
+      - name: Verify teardown
+        if: >-
+          steps.destroy1.outcome == 'success' ||
+          steps.destroy2.outcome == 'success' ||
+          steps.destroy3.outcome == 'success'
+        run: mise exec -- task infra:verify-destroyed

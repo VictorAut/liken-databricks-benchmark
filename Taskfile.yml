@@ -13,3 +13,36 @@ tasks:
     cmds:
       - mise exec -- terraform apply -input=false -auto-approve
 
+  infra:verify-destroyed:
+    desc: Verify teardown left no billable resources (exits 1 otherwise)
+    cmds:
+      - |
+        set -euo pipefail
+        fail=0
+        nat="$(aws ec2 describe-nat-gateways --filter Name=state,Values=available --query 'length(NatGateways)' --output text)"
+        if [ "$nat" != "0" ]; then
+          echo "::error::available NAT gateway(s) remain: $nat"
+          fail=1
+        else
+          echo "OK: no available NAT gateways"
+        fi
+        # Capture first: a failing aws s3 ls must trip errexit, not
+        # mask as an empty listing inside the if-pipeline.
+        buckets="$(aws s3 ls)"
+        if echo "$buckets" | grep liken-benchmark | grep -v tfstate; then
+          echo "::error::benchmark buckets remain (see listing above)"
+          fail=1
+        else
+          echo "OK: no benchmark data buckets"
+        fi
+        vpcs="$(aws ec2 describe-vpcs --query 'length(Vpcs[?!(IsDefault == `true`)])' --output text)"
+        if [ "$vpcs" != "0" ]; then
+          echo "::error::non-default VPC(s) remain: $vpcs"
+          fail=1
+        else
+          echo "OK: only the default VPC remains"
+        fi
+        if [ "$fail" = "1" ]; then
+          exit 1
+        fi
+

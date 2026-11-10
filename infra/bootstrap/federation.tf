@@ -3,10 +3,6 @@
 # The claim matched is job_workflow_ref, not sub, so the
 # subject carries no repo: prefix.
 #
-# This lives in bootstrap, not infra/main: infra/main is destroyed
-# between sessions, and the dispatch plan that re-creates the stack
-# needs this policy to authenticate first.
-#
 # The job_workflow_ref subject pins the reusable workflow at @main. Any
 # repository that can invoke it could use this identity; the reusable
 # workflow refuses callers from other repositories.

@@ -1,0 +1,71 @@
+name: Terraform plan (reusable)
+
+# Reusable Terraform plan. Called by infra.yml's plan job for both PR
+# and workflow-dispatch events.
+#
+# The Databricks federation policy matches this workflow's
+# job_workflow_ref at @main (not the `sub` claim), so plans authenticate
+# from any calling branch without environment approval. Because the
+# policy pins the reusable workflow rather than the caller, the job
+# below refuses callers from any other repository.
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+  id-token: write
+
+# Serialisation (group infra, not cancelled) is declared once, in the
+# caller: a called workflow joining its own run's concurrency group
+# would queue against itself.
+
+jobs:
+  plan:
+    if: github.repository == 'VictorAut/liken-databricks-benchmark'
+    runs-on: ubuntu-latest
+    steps:
+      # The caller's commit, explicitly: a reusable workflow runs from
+      # its own ref (main), and everything else here must evaluate the
+      # caller's Terraform configuration, never main's.
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ github.sha }}
+
+      - uses: jdx/mise-action@v5
+
+      - uses: ./.github/actions/infra-auth
+        with:
+          aws-role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
+          databricks-account-id: ${{ vars.DATABRICKS_ACCOUNT_ID }}
+          databricks-client-id: ${{ vars.DATABRICKS_ACCOUNT_CLIENT_ID }}
+          single-user-email: ${{ secrets.SINGLE_USER_EMAIL }}
+
+      # Selected OIDC claims only. The token itself is never printed.
+      # The default request audience is GitHub's org URL, the same aud
+      # the Databricks federation policies list.
+      - name: Inspect OIDC claims
+        run: |
+          token_json=$(curl -sf -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL")
+          token=$(echo "$token_json" | jq -r .value)
+          b64=$(echo "$token" | cut -d. -f2 | tr '_-' '/+')
+          pad=$(( (4 - ${#b64} % 4) % 4 ))
+          payload=$(printf '%s%.*s' "$b64" "$pad" '====' | base64 -d)
+          echo "$payload" | jq '{aud, sub, job_workflow_ref}'
+
+      - name: Init
+        run: mise exec -- terraform -chdir=infra/main init -input=false
+
+      - name: Plan
+        run: mise exec -- terraform -chdir=infra/main plan -input=false -out=tfplan
+
+      # Apply consumes this exact plan; it never re-plans.
+      - name: Upload plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan
+          path: infra/main/tfplan
+          retention-days: 1
+          if-no-files-found: error

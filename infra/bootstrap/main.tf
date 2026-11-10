@@ -48,10 +48,18 @@ resource "aws_iam_openid_connect_provider" "github" {
 }
 
 locals {
-  # job_workflow_ref pins the trust to this repo's infra.yml. The
+  # job_workflow_ref pins the trust to this repo's workflows. The
   # sub/environment subject is not used: GitHub does not emit the
   # environment segment for all events, so assumes are denied.
-  github_workflow_ref = "VictorAut/liken-databricks-benchmark/.github/workflows/infra.yml@*"
+  #
+  # infra.yml@* covers apply/destroy and any branch. terraform-plan.yml
+  # is the reusable plan workflow: callers reference it at @main, so
+  # its job_workflow_ref carries that ref. A plan job running from a
+  # caller branch still reports the reusable workflow's ref.
+  github_workflow_refs = [
+    "VictorAut/liken-databricks-benchmark/.github/workflows/infra.yml@*",
+    "VictorAut/liken-databricks-benchmark/.github/workflows/terraform-plan.yml@*",
+  ]
 }
 
 data "aws_iam_policy_document" "github_trust" {
@@ -67,7 +75,7 @@ data "aws_iam_policy_document" "github_trust" {
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:job_workflow_ref"
-      values   = [local.github_workflow_ref]
+      values   = local.github_workflow_refs
     }
 
     condition {

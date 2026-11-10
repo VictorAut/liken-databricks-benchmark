@@ -28,7 +28,10 @@ tasks:
         else
           echo "OK: no available NAT gateways"
         fi
-        if aws s3 ls | grep liken-benchmark | grep -v tfstate; then
+        # Capture first: a failing aws s3 ls must trip errexit, not
+        # mask as an empty listing inside the if-pipeline.
+        buckets="$(aws s3 ls)"
+        if echo "$buckets" | grep liken-benchmark | grep -v tfstate; then
           echo "::error::benchmark buckets remain (see listing above)"
           fail=1
         else

@@ -1,11 +1,5 @@
 name: Infra
 
-# Deploy path for the Databricks-on-AWS platform (D004): plan on PR as a
-# status check, everything else on dispatch. Merging to main deploys
-# nothing; apply and destroy run only when you dispatch them.
-# Destroy runs Terraform's own reverse-dependency order, with the
-# empty-account checks in the same job so they cannot be skipped.
-
 on:
   pull_request:
     paths:
@@ -14,20 +8,20 @@ on:
       - .github/actions/infra-auth/**
   workflow_dispatch:
     inputs:
-      action:
-        description: "Action"
-        required: true
-        default: "plan"
-        type: choice
-        options: [plan, apply, destroy]
+      plan:
+        required: false
+        default: false
+        type: boolean
+      apply:
+        required: false
+        default: false
+        type: boolean
+      destroy:
+        required: false
+        default: false
+        type: boolean
 
-# The Databricks federation policy (D012) pins the subject to
-# environment:benchmark, so every job that authenticates to Databricks
-# must declare this environment. The environment's required reviewer
-# makes D009's cost confirmation mechanical for apply/destroy. The plan
-# job also stays in the environment: Databricks data sources resolve at
-# plan time, and the federation policy admits only this environment's
-# tokens — moving plan out would 401 the first plan.
+
 permissions:
   contents: read
   id-token: write
@@ -36,76 +30,98 @@ concurrency:
   group: infra-${{ github.ref }}
   cancel-in-progress: false
 
-env:
-  AWS_REGION: eu-south-2
-
 jobs:
   plan:
     if: >-
       github.event_name == 'pull_request' ||
-      (github.event_name == 'workflow_dispatch' && inputs.action == 'plan')
+      (github.event_name == 'workflow_dispatch' &&
+        (inputs.plan || inputs.apply))
     runs-on: ubuntu-latest
     environment: benchmark
     steps:
       - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v2
+      - uses: jdx/mise-action@v5
       - uses: ./.github/actions/infra-auth
         with:
           aws-role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
           databricks-account-id: ${{ vars.DATABRICKS_ACCOUNT_ID }}
           databricks-client-id: ${{ vars.DATABRICKS_ACCOUNT_CLIENT_ID }}
+          single-user-email: ${{ secrets.SINGLE_USER_EMAIL }}
 
       - name: Plan
         run: |
           mise exec -- terraform -chdir=infra/main init -input=false
           mise exec -- terraform -chdir=infra/main plan -input=false -out=tfplan
+
+      # The apply job must apply exactly this plan, not a fresh one.
+      - name: Upload plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan
+          path: infra/main/tfplan
+          retention-days: 1
+          if-no-files-found: error
 
   apply:
-    if: github.event_name == 'workflow_dispatch' && inputs.action == 'apply'
+    needs: plan
+    if: >-
+      github.event_name == 'workflow_dispatch' && inputs.apply &&
+      !failure() && !cancelled()
     runs-on: ubuntu-latest
     environment: benchmark
     steps:
       - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v2
+      - uses: jdx/mise-action@v5
       - uses: ./.github/actions/infra-auth
         with:
           aws-role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
           databricks-account-id: ${{ vars.DATABRICKS_ACCOUNT_ID }}
           databricks-client-id: ${{ vars.DATABRICKS_ACCOUNT_CLIENT_ID }}
+          single-user-email: ${{ secrets.SINGLE_USER_EMAIL }}
 
-      - name: Plan
-        run: |
-          mise exec -- terraform -chdir=infra/main init -input=false
-          mise exec -- terraform -chdir=infra/main plan -input=false -out=tfplan
+      # Apply consumes the exact plan produced by the plan job.
+      - name: Download plan
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan
+          path: infra/main
+
+      # Apply needs provider plugins installed; init is idempotent and
+      # does not touch the downloaded plan.
+      - name: Init
+        run: mise exec -- terraform -chdir=infra/main init -input=false
 
       - name: Apply
         run: mise exec -- terraform -chdir=infra/main apply -input=false -auto-approve tfplan
 
   destroy:
-    if: github.event_name == 'workflow_dispatch' && inputs.action == 'destroy'
+    if: github.event_name == 'workflow_dispatch' && inputs.destroy
     runs-on: ubuntu-latest
     environment: benchmark
     steps:
       - name: checkout
         uses: actions/checkout@v4
       - name: mise tools
-        uses: jdx/mise-action@v2
+        uses: jdx/mise-action@v5
       - name: infra auth
         uses: ./.github/actions/infra-auth
         with:
           aws-role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
           databricks-account-id: ${{ vars.DATABRICKS_ACCOUNT_ID }}
           databricks-client-id: ${{ vars.DATABRICKS_ACCOUNT_CLIENT_ID }}
+          single-user-email: ${{ secrets.SINGLE_USER_EMAIL }}
 
       - name: Destroy
-        run: mise exec -- terraform -chdir=infra/main destroy -input=false -auto-approve
+        run: |
+          mise exec -- terraform -chdir=infra/main init -input=false
+          mise exec -- terraform -chdir=infra/main destroy -input=false -auto-approve
 
       # Empty-account checks in the same job: teardown cannot be
       # considered done unless these pass.
       - name: Verify no NAT gateway remains
         run: |
-          test "$(mise exec -- aws ec2 describe-nat-gateways --region eu-south-2 \
-            --filters Name=state,Values=available \
+          test "$(mise exec -- aws ec2 describe-nat-gateways \
+            --filter Name=state,Values=available \
             --query 'length(NatGateways)' --output text)" = "0"
 
       - name: Verify no benchmark buckets remain
@@ -117,5 +133,5 @@ jobs:
 
       - name: Verify only the default VPC remains
         run: |
-          test "$(mise exec -- aws ec2 describe-vpcs --region eu-south-2 \
+          test "$(mise exec -- aws ec2 describe-vpcs \
             --query 'length(Vpcs[?!(IsDefault == `true`)])' --output text)" = "0"

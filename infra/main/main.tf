@@ -43,7 +43,7 @@ resource "databricks_mws_credentials" "this" {
 }
 
 resource "aws_s3_bucket" "root" {
-  bucket        = "liken-benchmark-dbx-root-eu-south-2"
+  bucket        = "liken-benchmark-dbx-root-eu-central-1"
   force_destroy = true
 }
 
@@ -87,7 +87,7 @@ resource "aws_s3_bucket_policy" "root" {
 }
 
 resource "aws_s3_bucket" "data" {
-  bucket        = "liken-benchmark-data-eu-south-2"
+  bucket        = "liken-benchmark-data-eu-central-1"
   force_destroy = true
 }
 
@@ -233,7 +233,7 @@ resource "aws_route" "private_nat" {
 # S3 gateway endpoint: cluster→S3 traffic bypasses the NAT.
 resource "aws_vpc_endpoint" "s3" {
   vpc_id            = aws_vpc.this.id
-  service_name      = "com.amazonaws.eu-south-2.s3"
+  service_name      = "com.amazonaws.eu-central-1.s3"
   vpc_endpoint_type = "Gateway"
 
   route_table_ids = aws_route_table.private[*].id
@@ -244,7 +244,7 @@ resource "aws_vpc_endpoint" "s3" {
 # STS interface endpoint: Databricks credentials flows stay off the NAT.
 resource "aws_vpc_endpoint" "sts" {
   vpc_id            = aws_vpc.this.id
-  service_name      = "com.amazonaws.eu-south-2.sts"
+  service_name      = "com.amazonaws.eu-central-1.sts"
   vpc_endpoint_type = "Interface"
 
   subnet_ids          = aws_subnet.private[*].id
@@ -277,7 +277,7 @@ resource "databricks_mws_workspaces" "this" {
 
   account_id               = var.databricks_account_id
   workspace_name           = local.workspace_name
-  aws_region               = "eu-south-2"
+  aws_region               = "eu-central-1"
   credentials_id           = databricks_mws_credentials.this.credentials_id
   storage_configuration_id = databricks_mws_storage_configurations.this.storage_configuration_id
   network_id               = databricks_mws_networks.this.network_id
@@ -302,9 +302,10 @@ resource "null_resource" "wait_for_workspace" {
   }
 
   # The workspace URL can lag behind creation, so wait until it answers.
+  # workspace_url already carries the https scheme.
   provisioner "local-exec" {
     when    = create
-    command = "for i in $(seq 1 30); do code=$(curl -s -o /dev/null -w '%%{http_code}' \"https://${databricks_mws_workspaces.this.workspace_url}\") && [ \"$code\" -ge 200 ] && [ \"$code\" -lt 500 ] && exit 0; sleep 10; done; echo workspace URL never became reachable; exit 1"
+    command = "for i in $(seq 1 30); do code=$(curl -s -o /dev/null -w '%%{http_code}' \"${databricks_mws_workspaces.this.workspace_url}\") && [ \"$code\" -ge 200 ] && [ \"$code\" -lt 500 ] && exit 0; sleep 10; done; echo workspace URL never became reachable; exit 1"
   }
 }
 
@@ -333,6 +334,9 @@ resource "databricks_cluster" "benchmark" {
   node_type_id            = data.databricks_node_type.smallest.id
   autotermination_minutes = 30
   data_security_mode      = "SINGLE_USER"
+  # The single user is the person running benchmarks from the UI, not
+  # the deployer service principal (the SP only deploys infra).
+  single_user_name = var.single_user_email
 
   autoscale {
     min_workers = 1

@@ -1,5 +1,5 @@
 resource "aws_s3_bucket" "tfstate" {
-  bucket = "liken-benchmark-tfstate-eu-south-2"
+  bucket = "liken-benchmark-tfstate-eu-central-1"
 
   lifecycle {
     prevent_destroy = true
@@ -112,14 +112,23 @@ data "aws_iam_policy_document" "gha_permissions" {
       "s3:PutBucketTagging",
       "s3:GetBucketOwnershipControls",
       "s3:PutBucketOwnershipControls",
+      # The full refresh read set of aws_s3_bucket.
+      "s3:GetBucketCors",
+      "s3:GetBucketWebsite",
+      "s3:GetAccelerateConfiguration",
+      "s3:GetBucketRequestPayment",
+      "s3:GetBucketLogging",
+      "s3:GetLifecycleConfiguration",
+      "s3:GetReplicationConfiguration",
+      "s3:GetBucketObjectLockConfiguration",
     ]
     resources = [
-      "arn:aws:s3:::liken-benchmark-tfstate-eu-south-2",
-      "arn:aws:s3:::liken-benchmark-tfstate-eu-south-2/*",
-      "arn:aws:s3:::liken-benchmark-dbx-root-eu-south-2",
-      "arn:aws:s3:::liken-benchmark-dbx-root-eu-south-2/*",
-      "arn:aws:s3:::liken-benchmark-data-eu-south-2",
-      "arn:aws:s3:::liken-benchmark-data-eu-south-2/*",
+      "arn:aws:s3:::liken-benchmark-tfstate-eu-central-1",
+      "arn:aws:s3:::liken-benchmark-tfstate-eu-central-1/*",
+      "arn:aws:s3:::liken-benchmark-dbx-root-eu-central-1",
+      "arn:aws:s3:::liken-benchmark-dbx-root-eu-central-1/*",
+      "arn:aws:s3:::liken-benchmark-data-eu-central-1",
+      "arn:aws:s3:::liken-benchmark-data-eu-central-1/*",
     ]
   }
 
@@ -167,6 +176,7 @@ data "aws_iam_policy_document" "gha_permissions" {
       "ec2:ReleaseAddress",
       "ec2:DescribeAddresses",
       "ec2:AssociateAddress",
+      "ec2:DisassociateAddress",
       "ec2:CreateVpcEndpoint",
       "ec2:DeleteVpcEndpoints",
       "ec2:DescribeVpcEndpoints",
@@ -174,6 +184,10 @@ data "aws_iam_policy_document" "gha_permissions" {
       "ec2:DescribeSecurityGroups",
       "ec2:CreateSecurityGroup",
       "ec2:DeleteSecurityGroup",
+      "ec2:AuthorizeSecurityGroupIngress",
+      "ec2:RevokeSecurityGroupIngress",
+      "ec2:AuthorizeSecurityGroupEgress",
+      "ec2:RevokeSecurityGroupEgress",
       "ec2:CreateTags",
       "ec2:DeleteTags",
       "ec2:DescribeNetworkInterfaces",
@@ -202,6 +216,7 @@ data "aws_iam_policy_document" "gha_permissions" {
       "iam:GetRolePolicy",
       "iam:DeleteRolePolicy",
       "iam:ListRolePolicies",
+      "iam:ListInstanceProfilesForRole",
       "iam:ListAttachedRolePolicies",
       "iam:TagRole",
       "iam:UntagRole",

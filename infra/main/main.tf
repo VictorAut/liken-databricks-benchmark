@@ -309,6 +309,23 @@ resource "null_resource" "wait_for_workspace" {
   }
 }
 
+# The workspace is opened from the UI by the single user's identity, so
+# its workspace assignment is defined here rather than as a console
+# step that every destroy → apply cycle would lose.
+data "databricks_user" "benchmark_admin" {
+  provider  = databricks.accounts
+  user_name = var.single_user_email
+}
+
+resource "databricks_mws_permission_assignment" "benchmark_admin" {
+  provider     = databricks.accounts
+  workspace_id = databricks_mws_workspaces.this.workspace_id
+  principal_id = data.databricks_user.benchmark_admin.id
+  permissions  = ["ADMIN"]
+
+  depends_on = [null_resource.wait_for_workspace]
+}
+
 # Latest LTS runtime carrying Spark 4.0. The depends_on keeps auth lazy:
 # no data source touches the workspace before it exists.
 data "databricks_spark_version" "lts" {

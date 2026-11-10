@@ -327,6 +327,16 @@ data "databricks_node_type" "smallest" {
   depends_on = [databricks_mws_workspaces.this]
 }
 
+# Destroy-only wait: the cluster permanent-delete call returns before the
+# workers terminate. Keep the workspace alive while they do, so its instance
+# manager releases the worker ENIs; otherwise the subnet delete fails with
+# DependencyViolation and the workers are orphaned.
+resource "time_sleep" "after_cluster" {
+  destroy_duration = "10m"
+
+  depends_on = [databricks_mws_workspaces.this]
+}
+
 resource "databricks_cluster" "benchmark" {
   provider                = databricks.workspace
   cluster_name            = local.cluster_name
@@ -348,4 +358,6 @@ resource "databricks_cluster" "benchmark" {
       package = "liken==0.16.0"
     }
   }
+
+  depends_on = [time_sleep.after_cluster]
 }

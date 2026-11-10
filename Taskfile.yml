@@ -13,3 +13,35 @@ tasks:
     cmds:
       - mise exec -- terraform apply -input=false -auto-approve
 
+  infra:verify-destroyed:
+    desc: >-
+      Verify teardown left no billable resources. Exits 1 when a check
+      finds resources; set ALLOW_NONEMPTY=1 to warn instead (smoke runs).
+    cmds:
+      - |
+        set -euo pipefail
+        fail=0
+        nat="$(aws ec2 describe-nat-gateways --filter Name=state,Values=available --query 'length(NatGateways)' --output text)"
+        if [ "$nat" != "0" ]; then
+          echo "::error::available NAT gateway(s) remain: $nat"
+          fail=1
+        else
+          echo "OK: no available NAT gateways"
+        fi
+        if aws s3 ls | grep liken-benchmark | grep -v tfstate; then
+          echo "::error::benchmark buckets remain (see listing above)"
+          fail=1
+        else
+          echo "OK: no benchmark data buckets"
+        fi
+        vpcs="$(aws ec2 describe-vpcs --query 'length(Vpcs[?!(IsDefault == `true`)])' --output text)"
+        if [ "$vpcs" != "0" ]; then
+          echo "::error::non-default VPC(s) remain: $vpcs"
+          fail=1
+        else
+          echo "OK: only the default VPC remains"
+        fi
+        if [ "$fail" = "1" ] && [ -z "${ALLOW_NONEMPTY:-}" ]; then
+          exit 1
+        fi
+

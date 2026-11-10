@@ -14,9 +14,7 @@ tasks:
       - mise exec -- terraform apply -input=false -auto-approve
 
   infra:verify-destroyed:
-    desc: >-
-      Verify teardown left no billable resources. Exits 1 when a check
-      finds resources; set ALLOW_NONEMPTY=1 to warn instead (smoke runs).
+    desc: Verify teardown left no billable resources (exits 1 otherwise)
     cmds:
       - |
         set -euo pipefail
@@ -44,7 +42,7 @@ tasks:
         else
           echo "OK: only the default VPC remains"
         fi
-        if [ "$fail" = "1" ] && [ -z "${ALLOW_NONEMPTY:-}" ]; then
+        if [ "$fail" = "1" ]; then
           exit 1
         fi
 

@@ -35,16 +35,11 @@ jobs:
 
       - uses: jdx/mise-action@v5
 
-      - uses: ./.github/actions/infra-auth
-        with:
-          aws-role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
-          databricks-account-id: ${{ vars.DATABRICKS_ACCOUNT_ID }}
-          databricks-client-id: ${{ vars.DATABRICKS_ACCOUNT_CLIENT_ID }}
-          single-user-email: ${{ secrets.SINGLE_USER_EMAIL }}
-
       # Selected OIDC claims only. The token itself is never printed.
       # The default request audience is GitHub's org URL, the same aud
-      # the Databricks federation policies list.
+      # the Databricks federation policies list. Runs before auth so
+      # the claims are visible even when an assume or federation step
+      # fails.
       - name: Inspect OIDC claims
         run: |
           token_json=$(curl -sf -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
@@ -54,6 +49,13 @@ jobs:
           pad=$(( (4 - ${#b64} % 4) % 4 ))
           payload=$(printf '%s%.*s' "$b64" "$pad" '====' | base64 -d)
           echo "$payload" | jq '{aud, sub, job_workflow_ref}'
+
+      - uses: ./.github/actions/infra-auth
+        with:
+          aws-role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
+          databricks-account-id: ${{ vars.DATABRICKS_ACCOUNT_ID }}
+          databricks-client-id: ${{ vars.DATABRICKS_ACCOUNT_CLIENT_ID }}
+          single-user-email: ${{ secrets.SINGLE_USER_EMAIL }}
 
       - name: Init
         run: mise exec -- terraform -chdir=infra/main init -input=false

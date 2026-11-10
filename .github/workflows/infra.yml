@@ -26,27 +26,11 @@ permissions:
   contents: read
   id-token: write
 
-# One state bucket, one account: every run serialises, whatever branch
-# it comes from. Queued, not cancelled.
 concurrency:
   group: infra
   cancel-in-progress: false
 
 jobs:
-  # Read-only plan: on PRs for review, on dispatch as plan inspection
-  # or as the first half of an apply. No environment gate: plan is
-  # read-only, and PR runs must not wait on environment approval.
-  #
-  # The plan implementation lives in the reusable terraform-plan
-  # workflow: it is the federation-policy subject (job_workflow_ref),
-  # so dispatch plans authenticate from any
-  # branch. The job runs the caller's commit; see that file.
-  #
-  # PRs receive AWS and Databricks credentials by design. The repo has
-  # a single committer, plan only reads (state refresh), and fork PRs
-  # get no secrets from GitHub anyway. Residual risk: the Databricks
-  # service principal is account-admin. Scope it down before adding
-  # collaborators.
   plan:
     if: >-
       github.event_name == 'pull_request' ||
@@ -89,10 +73,10 @@ jobs:
       # not touch the downloaded plan; the lock file pins the provider
       # versions to exactly the ones that produced the plan.
       - name: Init
-        run: mise exec -- terraform -chdir=infra/main init -input=false
+        run: terraform -chdir=infra/main init -input=false
 
       - name: Apply
-        run: mise exec -- terraform -chdir=infra/main apply -input=false -auto-approve tfplan
+        run: terraform -chdir=infra/main apply -input=false -auto-approve tfplan
 
   # Teardown, dispatched only. Bounded retry absorbs ENI/subnet races
   # (DependencyViolation); the strict verify task is the gate.
@@ -111,12 +95,12 @@ jobs:
           single-user-email: ${{ secrets.SINGLE_USER_EMAIL }}
 
       - name: Init
-        run: mise exec -- terraform -chdir=infra/main init -input=false
+        run: terraform -chdir=infra/main init -input=false
 
       - name: Destroy (attempt 1/3)
         id: destroy1
         continue-on-error: true
-        run: mise exec -- terraform -chdir=infra/main destroy -input=false -auto-approve
+        run: terraform -chdir=infra/main destroy -input=false -auto-approve
       - name: Wait before retry
         if: steps.destroy1.outcome == 'failure'
         run: sleep 60
@@ -124,7 +108,7 @@ jobs:
         id: destroy2
         if: steps.destroy1.outcome == 'failure'
         continue-on-error: true
-        run: mise exec -- terraform -chdir=infra/main destroy -input=false -auto-approve
+        run: terraform -chdir=infra/main destroy -input=false -auto-approve
       - name: Wait before retry
         if: steps.destroy2.outcome == 'failure'
         run: sleep 60
@@ -132,7 +116,7 @@ jobs:
         id: destroy3
         if: steps.destroy2.outcome == 'failure'
         continue-on-error: true
-        run: mise exec -- terraform -chdir=infra/main destroy -input=false -auto-approve
+        run: terraform -chdir=infra/main destroy -input=false -auto-approve
 
       - name: Destroy failed after 3 attempts
         if: >-
@@ -147,4 +131,4 @@ jobs:
           steps.destroy1.outcome == 'success' ||
           steps.destroy2.outcome == 'success' ||
           steps.destroy3.outcome == 'success'
-        run: mise exec -- task infra:verify-destroyed
+        run: task infra:verify-destroyed

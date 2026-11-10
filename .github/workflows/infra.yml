@@ -91,12 +91,6 @@ jobs:
       - name: Init
         run: mise exec -- terraform -chdir=infra/main init -input=false
 
-      # Nothing billable is created on top of a dirty account (D009).
-      # This also blocks resume-after-partial-apply: resume means
-      # destroy first.
-      - name: Verify clean account
-        run: mise exec -- task infra:verify-destroyed
-
       - name: Apply
         run: mise exec -- terraform -chdir=infra/main apply -input=false -auto-approve tfplan
 

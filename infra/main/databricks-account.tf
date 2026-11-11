@@ -49,6 +49,35 @@ resource "databricks_mws_workspaces" "this" {
     Project   = "liken-databricks-benchmark"
     ManagedBy = "Terraform"
   }
+
+  provisioner "local-exec" {
+    when = destroy
+
+    command = <<-EOT
+    set -eu
+
+    instance_ids=$(aws ec2 describe-instances \
+      --region "${self.aws_region}" \
+      --filters \
+        "Name=tag:Vendor,Values=Databricks" \
+        "Name=tag:Project,Values=${self.custom_tags.Project}" \
+        "Name=instance-state-name,Values=pending,running,stopping,stopped" \
+      --query 'Reservations[].Instances[].InstanceId' \
+      --output text)
+
+    if [ -n "$instance_ids" ] && [ "$instance_ids" != "None" ]; then
+      set -- $instance_ids
+
+      aws ec2 terminate-instances \
+        --region "${self.aws_region}" \
+        --instance-ids "$@"
+
+      aws ec2 wait instance-terminated \
+        --region "${self.aws_region}" \
+        --instance-ids "$@"
+    fi
+  EOT
+  }
 }
 
 

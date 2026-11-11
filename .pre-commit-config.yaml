@@ -5,14 +5,14 @@ repos:
   - repo: local
     hooks:
       - id: terraform-fmt
-        name: terraform fmt (bootstrap, main)
+        name: terraform fmt
         entry: bash -c 'mise exec -- terraform -chdir=infra/bootstrap fmt -recursive && mise exec -- terraform -chdir=infra/main fmt -recursive'
         language: system
         files: ^infra/.*\.tf$
         pass_filenames: false
 
       - id: terraform-validate
-        name: terraform validate (bootstrap, main)
+        name: terraform validate
         entry: bash -c 'mise exec -- terraform -chdir=infra/bootstrap init -backend=false -input=false && mise exec -- terraform -chdir=infra/bootstrap validate && mise exec -- terraform -chdir=infra/main init -backend=false -input=false && mise exec -- terraform -chdir=infra/main validate'
         language: system
         files: ^infra/.*\.tf$

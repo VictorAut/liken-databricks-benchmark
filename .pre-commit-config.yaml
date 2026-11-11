@@ -1,0 +1,12 @@
+# Local Terraform format + validate. Runs on any commit touching
+# infra/**. terraform comes from mise; validate inits with the backend
+# disabled so no AWS credentials are needed.
+repos:
+  - repo: local
+    hooks:
+      - id: terraform-fmt
+        name: terraform fmt
+        entry: bash -c 'mise exec -- terraform -chdir=infra/bootstrap fmt -recursive && mise exec -- terraform -chdir=infra/main fmt -recursive'
+        language: system
+        files: ^infra/.*\.tf$
+        pass_filenames: false

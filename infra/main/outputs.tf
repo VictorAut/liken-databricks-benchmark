@@ -2,7 +2,7 @@ output "workspace_url" {
   description = "URL of the benchmark workspace."
   value       = databricks_mws_workspaces.this.workspace_url
 
-  depends_on = [null_resource.wait_for_workspace]
+  depends_on = [terraform_data.wait_for_workspace]
 }
 
 output "cluster_id" {

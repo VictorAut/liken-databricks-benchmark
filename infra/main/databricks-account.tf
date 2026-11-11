@@ -61,7 +61,7 @@ resource "databricks_mws_workspaces" "this" {
       --filters \
         "Name=tag:Vendor,Values=Databricks" \
         "Name=tag:Project,Values=${self.custom_tags.Project}" \
-        "Name=instance-state-name,Values=pending,running,stopping,stopped" \
+        "Name=instance-state-name,Values=pending,running,stopping,stopped,shutting-down" \
       --query 'Reservations[].Instances[].InstanceId' \
       --output text)
 

@@ -1,11 +1,10 @@
 
 resource "databricks_mws_credentials" "this" {
   provider         = databricks.accounts
-  account_id       = var.databricks_account_id
   credentials_name = "liken-benchmark-credentials"
   role_arn         = aws_iam_role.crossaccount.arn
 
-  depends_on = [aws_iam_role_policy.crossaccount]
+  depends_on = [time_sleep.after_role_policy]
 }
 
 
